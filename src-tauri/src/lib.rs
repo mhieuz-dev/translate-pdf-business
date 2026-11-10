@@ -116,7 +116,7 @@ async fn pdf_translate(
     dual: bool,
     engine: String,
 ) -> Result<pdf::PdfOutput, String> {
-    pdf::translate(app, state.data_dir.clone(), job_id, PathBuf::from(path), lang, dual, engine).await
+    pdf::translate(pdf::app_reporter(app), state.data_dir.clone(), job_id, PathBuf::from(path), lang, dual, engine).await
 }
 
 // ======================= Hệ thống =======================

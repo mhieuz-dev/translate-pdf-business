@@ -14,6 +14,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 const BRIDGE: &str = include_str!("../resources/pdf_bridge.py");
+/// Số yêu cầu dịch gửi song song. Thời gian dịch PDF gần như toàn bộ là chờ dịch vụ trả lời.
+const PDF_QPS: u32 = 12;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PdfStatus {
@@ -31,10 +33,19 @@ pub struct PdfOutput {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct Progress {
-    job_id: String,
-    percent: Option<f64>,
-    line: Option<String>,
+pub struct Progress {
+    pub job_id: String,
+    pub percent: Option<f64>,
+    pub line: Option<String>,
+}
+
+/// Nơi nhận tiến độ: trong app là sự kiện gửi lên giao diện, trong test là một danh sách.
+pub type Reporter = std::sync::Arc<dyn Fn(Progress) + Send + Sync>;
+
+pub fn app_reporter(app: AppHandle) -> Reporter {
+    std::sync::Arc::new(move |p: Progress| {
+        let _ = app.emit("pdf-progress", p);
+    })
 }
 
 fn exe_name(base: &str) -> String {
@@ -144,6 +155,10 @@ pub fn build_args(input: &Path, out_dir: &Path, lang: &str, dual: bool, engine: 
         lang.into(),
         "--output".into(),
         out_dir.display().to_string(),
+        // Đo 10/11/2026 trên 4 trang paper, Bing: mặc định 4 yêu cầu song song mất 74,8 s,
+        // 12 mất 35,6 s; 20/32/48 không nhanh hơn (33-39 s) mà dễ bị dịch vụ chặn hơn.
+        "--qps".into(),
+        PDF_QPS.to_string(),
     ];
     if !dual {
         a.push("--no-dual".into());
@@ -160,7 +175,7 @@ pub fn monotonic(prev: f64, next: f64) -> f64 {
     }
 }
 
-pub async fn translate(app: AppHandle, data_dir: PathBuf, job_id: String, input: PathBuf, lang: String, dual: bool, engine: String) -> Result<PdfOutput, String> {
+pub async fn translate(report: Reporter, data_dir: PathBuf, job_id: String, input: PathBuf, lang: String, dual: bool, engine: String) -> Result<PdfOutput, String> {
     let st = status(&data_dir).await;
     let py = st.python.filter(|_| st.found).ok_or_else(|| st.detail.unwrap_or_else(|| "Chưa cài PDFMathTranslate".into()))?;
     if !input.is_file() {
@@ -181,13 +196,11 @@ pub async fn translate(app: AppHandle, data_dir: PathBuf, job_id: String, input:
     }
     let mut child = cmd.spawn().map_err(|e| format!("Không chạy được PDFMathTranslate: {e}"))?;
 
-    let emit = |percent: Option<f64>, line: Option<String>| {
-        let _ = app.emit("pdf-progress", Progress { job_id: job_id.clone(), percent, line });
-    };
+    let emit = |percent: Option<f64>, line: Option<String>| report(Progress { job_id: job_id.clone(), percent, line });
 
     // stderr: chuyển thẳng vào nhật ký.
     let stderr = child.stderr.take().ok_or("Không đọc được stderr")?;
-    let app2 = app.clone();
+    let report2 = report.clone();
     let job2 = job_id.clone();
     let err_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stderr).lines();
@@ -196,7 +209,7 @@ pub async fn translate(app: AppHandle, data_dir: PathBuf, job_id: String, input:
             if l.trim().is_empty() {
                 continue;
             }
-            let _ = app2.emit("pdf-progress", Progress { job_id: job2.clone(), percent: None, line: Some(l.clone()) });
+            report2(Progress { job_id: job2.clone(), percent: None, line: Some(l.clone()) });
             tail.push(l);
             if tail.len() > 20 {
                 tail.remove(0);
@@ -271,7 +284,7 @@ mod tests {
     #[test]
     fn args_for_bing_without_dual() {
         let a = build_args(Path::new("/x/p.pdf"), Path::new("/x"), "vi", false, "bing").unwrap();
-        assert_eq!(a, vec!["/x/p.pdf", "--bing", "--lang-out", "vi", "--output", "/x", "--no-dual"]);
+        assert_eq!(a, vec!["/x/p.pdf", "--bing", "--lang-out", "vi", "--output", "/x", "--qps", "12", "--no-dual"]);
     }
 
     #[test]
@@ -309,6 +322,44 @@ mod tests {
         // shebang dạng env: rơi về python nằm cạnh
         std::fs::write(&s, "#!/usr/bin/env python3\n").unwrap();
         assert_eq!(python_for(&s), Some(py));
+    }
+
+    /// Dịch thật một file PDF 1 trang từ đầu tới cuối (cần đã cài pdf2zh-next và có mạng).
+    /// Chạy: cargo test -p thong-ngu pdf_end_to_end -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn pdf_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let pdf = dir.path().join("mau.pdf");
+        let made = std::process::Command::new("python3")
+            .args(["-c", "import sys, fitz; d=fitz.open(); p=d.new_page(); p.insert_textbox(fitz.Rect(72,72,520,700), 'Overfitting occurs when a model learns the training data too well and fails to generalize. We evaluate the robustness of the model under distribution shift.', fontsize=12); d.save(sys.argv[1])", pdf.to_str().unwrap()])
+            .status()
+            .unwrap();
+        assert!(made.success(), "cần python3 có pymupdf để tạo PDF mẫu");
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Progress>::new()));
+        let seen2 = seen.clone();
+        let report: Reporter = std::sync::Arc::new(move |p| seen2.lock().unwrap().push(p));
+        let data = dir.path().join("data");
+        let out = translate(report, data, "j1".into(), pdf.clone(), "vi".into(), true, "bing".into()).await.expect("dịch PDF");
+        println!("{out:?}");
+        assert_eq!(out.files.len(), 2, "phải có bản dịch và bản song ngữ");
+        assert!(out.files.iter().all(|f| Path::new(f).is_file()));
+        let ev = seen.lock().unwrap();
+        let max = ev.iter().filter_map(|p| p.percent).fold(0.0, f64::max);
+        assert_eq!(max, 100.0, "tiến độ phải tới 100%");
+        let mut last = 0.0;
+        for p in ev.iter().filter_map(|p| p.percent) {
+            assert!(p >= last, "tiến độ không được giảm");
+            last = p;
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_file_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let report: Reporter = std::sync::Arc::new(|_| {});
+        let r = translate(report, dir.path().to_path_buf(), "j".into(), dir.path().join("khong-co.pdf"), "vi".into(), true, "bing".into()).await;
+        assert!(r.is_err());
     }
 
     #[test]
