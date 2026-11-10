@@ -1,0 +1,17 @@
+# ghi chu noi bo
+memory.md
+docs/superpowers/
+
+# moi truong / build
+.venv/
+tools/pdf2zh/.venv/
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+
+# du lieu ca nhan, file tam
+*.db
+*.sqlite
+.env
+*.log
+/target/
