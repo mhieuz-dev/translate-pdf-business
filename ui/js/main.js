@@ -1,4 +1,4 @@
-// Cửa sổ chính: Tra cứu, Bảng thuật ngữ, Dịch PDF, Cài đặt.
+// Trang chính: Tra cứu, Bảng thuật ngữ, Dịch PDF (js/pdf.js), Cài đặt.
 hydrateIcons();
 
 const state = {
@@ -6,9 +6,6 @@ const state = {
   dirLocked: null,   // null = tự nhận theo chữ gõ vào; 'en-vi' | 'vi-en' khi người dùng bấm đổi chiều
   last: null,        // kết quả tra gần nhất
   terms: [],
-  info: null,
-  pdfQueue: [],
-  pdfBusy: false,
 };
 
 // ================= Điều hướng =================
@@ -287,147 +284,14 @@ $('#g-import').addEventListener('click', async () => {
   } catch (err) { toast(String(err), 'err'); }
 });
 
-// ================= Dịch PDF =================
-async function checkPdf() {
-  const st = await call('pdf_status');
-  if (st.web) return st; // bản web: thẻ "tải app desktop" đã hiện sẵn
-  $('#pdf-missing').hidden = st.found;
-  $('#pdf-ready').hidden = !st.found;
-  $('#pdf-missing-detail').textContent = st.found ? '' : (st.detail || '');
-  return st;
-}
-$('#pdf-recheck').addEventListener('click', checkPdf);
-
-$('#dropzone').addEventListener('click', async () => {
-  const paths = await call('pick_pdfs');
-  if (paths && paths.length) enqueuePdfs(paths);
-});
-
-if (IN_APP && TAURI.webview) {
-  TAURI.webview.getCurrentWebview().onDragDropEvent((ev) => {
-    const p = ev.payload;
-    const dz = $('#dropzone');
-    if (p.type === 'over' || p.type === 'enter') dz.classList.add('over');
-    else dz.classList.remove('over');
-    if (p.type === 'drop') {
-      const pdfs = (p.paths || []).filter((x) => x.toLowerCase().endsWith('.pdf'));
-      if (state.page !== 'pdf') showPage('pdf');
-      if (pdfs.length) enqueuePdfs(pdfs);
-      else toast('Chỉ nhận file .pdf', 'err');
-    }
-  });
-}
-
-function enqueuePdfs(paths) {
-  paths.forEach((path) => {
-    const id = `j${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
-    const name = path.split(/[\\/]/).pop();
-    const el = document.createElement('div');
-    el.className = 'card job';
-    el.id = id;
-    el.innerHTML = `
-      <div class="job-head">
-        <div class="job-icon">${icon('file')}</div>
-        <div class="grow"><div class="job-name">${esc(name)}</div><div class="job-status">Đang chờ</div></div>
-        <div class="job-actions row"></div>
-      </div>
-      <div class="progress"><div></div></div>
-      <details class="small muted" style="margin-top:8px"><summary style="cursor:pointer">Nhật ký</summary><div class="job-log"></div></details>`;
-    $('#jobs').prepend(el);
-    state.pdfQueue.push({ id, path });
-  });
-  runPdfQueue();
-}
-
-async function runPdfQueue() {
-  if (state.pdfBusy) return;
-  const job = state.pdfQueue.shift();
-  if (!job) return;
-  state.pdfBusy = true;
-  const el = $(`#${job.id}`);
-  $('.job-status', el).textContent = 'Đang dịch... (lần đầu có thể lâu vì phải tải mô hình nhận dạng bố cục)';
-  $('.progress', el).classList.add('indet');
-  try {
-    const out = await call('pdf_translate', {
-      jobId: job.id,
-      path: job.path,
-      lang: $('#pdf-lang').value,
-      dual: $('#pdf-dual').checked,
-      engine: $('#pdf-engine').value,
-    });
-    $('.progress', el).classList.remove('indet');
-    $('.progress > div', el).style.width = '100%';
-    $('.job-status', el).textContent = 'Xong';
-    const acts = $('.job-actions', el);
-    (out.files || []).forEach((f) => {
-      const b = document.createElement('button');
-      b.className = 'btn btn-outline btn-sm';
-      b.textContent = /dual/i.test(f) ? 'Mở bản song ngữ' : 'Mở bản dịch';
-      b.addEventListener('click', () => call('open_path', { path: f }));
-      acts.appendChild(b);
-    });
-    const fb = document.createElement('button');
-    fb.className = 'icon-btn';
-    fb.title = 'Mở thư mục';
-    fb.innerHTML = icon('folder');
-    fb.addEventListener('click', () => call('open_path', { path: out.dir }));
-    acts.appendChild(fb);
-  } catch (err) {
-    $('.progress', el).classList.remove('indet');
-    $('.job-status', el).innerHTML = `<span style="color:var(--danger)">Lỗi: ${esc(err)}</span>`;
-    $('details', el).open = true;
-  }
-  state.pdfBusy = false;
-  runPdfQueue();
-}
-
-onEvent('pdf-progress', (p) => {
-  const el = $(`#${p.job_id}`);
-  if (!el) return;
-  if (p.line) {
-    const log = $('.job-log', el);
-    log.textContent = (log.textContent + p.line + '\n').slice(-6000);
-    log.scrollTop = log.scrollHeight;
-  }
-  if (typeof p.percent === 'number') {
-    $('.progress', el).classList.remove('indet');
-    $('.progress > div', el).style.width = `${Math.max(2, Math.min(100, p.percent))}%`;
-    $('.job-status', el).textContent = `Đang dịch... ${Math.round(p.percent)}%`;
-  }
-});
+// ================= Dịch PDF: xem js/pdf.js =================
 
 // ================= Cài đặt =================
 async function loadSettings() {
   const info = await call('app_info');
-  state.info = info;
-  $('#set-data').textContent = info.data_dir;
   $('#set-version').textContent = `Thông Ngữ ${info.version}`;
-  const st = info.pdf;
-  $('#set-pdf').innerHTML = st.found
-    ? `Đã sẵn sàng: <span class="code">${esc(st.path)}</span>${st.version ? ` (bản ${esc(st.version)})` : ''}`
-    : 'Chưa cài. Vào mục Dịch PDF để xem cách cài.';
-  $('#set-hotkey-text').innerHTML = info.hotkey_installed
-    ? `Đã cài: bôi đen chữ rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd>. Bấm lại nút bên cạnh nếu phím tắt ngừng hoạt động.`
-    : 'Bôi đen chữ ở bất kỳ ứng dụng nào rồi bấm phím tắt để mở cửa sổ tra nhanh.';
-  $('#set-hotkey').textContent = info.hotkey_installed ? 'Cài lại phím tắt' : 'Cài phím tắt';
 }
-$('#set-hotkey').addEventListener('click', async () => {
-  try {
-    const msg = await call('install_hotkey');
-    toast(msg || 'Đã cài phím tắt Ctrl+Alt+E');
-    loadSettings();
-  } catch (err) { toast(String(err), 'err'); }
-});
-$('#set-open-data').addEventListener('click', () => call('open_path', { path: state.info.data_dir }));
 $('#set-github').addEventListener('click', () => call('open_url', { url: GITHUB_URL }));
-$$('[data-download]').forEach((b) => b.addEventListener('click', () => call('open_url', { url: DOWNLOAD_URL })));
-
-// ================= Nhận yêu cầu tra từ phím tắt / cửa sổ tra nhanh =================
-onEvent('lookup-request', (q) => {
-  showPage('lookup');
-  state.dirLocked = null;
-  doLookup(q);
-});
 
 // ================= Khởi động =================
 refreshDirLabel();

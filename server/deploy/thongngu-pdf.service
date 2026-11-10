@@ -1,0 +1,35 @@
+# Máy chủ dịch PDF của Thông Ngữ. Chạy ké VPS nên bị giới hạn cứng để không ảnh hưởng dịch vụ khác:
+# tối đa 1 nhân CPU, RAM theo MemoryMax, độ ưu tiên thấp (Nice/IOWeight).
+[Unit]
+Description=Thong Ngu - may chu dich PDF
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=thongngu
+Group=thongngu
+WorkingDirectory=/opt/thongngu-pdf
+Environment=THONGNGU_DATA_DIR=/var/lib/thongngu-pdf
+Environment=THONGNGU_ALLOWED_ORIGINS=https://thong-ngu.vercel.app
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/thongngu-pdf/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8787 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+CPUQuota=100%
+MemoryHigh=__MEM_HIGH__
+MemoryMax=__MEM_MAX__
+Nice=10
+IOWeight=50
+TasksMax=200
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/thongngu-pdf /opt/thongngu-pdf/.cache
+Environment=HOME=/opt/thongngu-pdf
+Environment=XDG_CACHE_HOME=/opt/thongngu-pdf/.cache
+
+[Install]
+WantedBy=multi-user.target

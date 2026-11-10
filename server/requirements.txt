@@ -1,0 +1,4 @@
+pdf2zh-next==2.10.2
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9

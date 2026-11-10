@@ -422,3 +422,8 @@ button:focus-visible, .cand:focus-visible, .chip:focus-visible, a:focus-visible 
   .table-wrap table { min-width: 600px; }
   .card-pad { padding: 18px; }
 }
+
+/* Khung kéo thả là <label> (bấm vào để mở hộp chọn file) nên phải ép thành khối */
+label.dropzone { display: block; }
+/* Nút dạng link (Xem/Tải bản dịch) không gạch chân */
+a.btn { text-decoration: none; }

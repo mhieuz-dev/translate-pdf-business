@@ -1,0 +1,8 @@
+# Dán vào trong khối site mhieuz.com { ... } của Caddyfile, rồi: systemctl reload caddy
+# https://mhieuz.com/thongngu-pdf/health -> 127.0.0.1:8787/health
+handle_path /thongngu-pdf/* {
+	request_body {
+		max_size 32MB
+	}
+	reverse_proxy 127.0.0.1:8787
+}
