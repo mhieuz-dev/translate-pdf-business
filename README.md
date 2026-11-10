@@ -29,9 +29,11 @@ Thông Ngữ gom các nguồn đó vào một chỗ, xếp gợi ý được nhi
 - Gợi ý từ **Wikipedia** (tên thuật ngữ cộng đồng dùng), **Google Dịch**, **bộ nhớ dịch MyMemory** (bản dịch của người thật) và **định nghĩa tiếng Anh**. Gợi ý trùng được gộp, ghi rõ nguồn nào cũng đồng ý.
 - **Bảng thuật ngữ riêng** theo chuyên ngành, tìm không dấu, xuất/nhập CSV.
 - **Dán cả câu**: dịch câu và chỉ ra những thuật ngữ bạn đã lưu nằm trong câu.
-- **Dịch cả file PDF** bằng [PDFMathTranslate](https://github.com/PDFMathTranslate/PDFMathTranslate): giữ bố cục, công thức, bảng, hình; có bản song ngữ để đối chiếu; chọn được trang cần dịch.
+- **Dịch cả file PDF** bằng [PDFMathTranslate](https://github.com/PDFMathTranslate/PDFMathTranslate): giữ bố cục, công thức, bảng, hình; chọn được trang cần dịch.
+- **Chữ bản dịch giống bản gốc**: tự nhận font của paper, bài dùng Times thì dịch bằng TeX Gyre Termes, bài dùng font LaTeX mặc định thì dịch bằng Latin Modern (cả hai đủ dấu tiếng Việt), cỡ chữ gần bằng bản gốc, kích thước trang giữ nguyên.
+- **Đọc song song**: dịch xong tự mở trang gốc và trang dịch cạnh nhau, luôn khớp từng trang. **Bấm vào một từ** (hoặc kéo chọn cả cụm) để xem nghĩa tiếng Việt và lưu vào bảng thuật ngữ, câu chứa từ được ghi làm ngữ cảnh.
 
-![Dịch PDF](docs/screenshot-dich-pdf.png)
+![Đọc song song](docs/screenshot-doc-song-song.png)
 
 ## Dữ liệu và quyền riêng tư
 
