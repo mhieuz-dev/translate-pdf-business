@@ -21,7 +21,7 @@ async fn run(q: &str, dir: Direction) -> thongngu_core::LookupResult {
 async fn live_en_to_vi_term() {
     let r = run("overfitting", Direction::EnVi).await;
     assert!(r.errors.iter().all(|e| e != "wikipedia" && e != "google"), "{:?}", r.errors);
-    assert!(r.candidates.iter().any(|c| c.source == "wikipedia" && c.text == "Sự quá khớp"));
+    assert!(r.candidates.iter().any(|c| c.source == "wikipedia" && c.text == "sự quá khớp"));
     assert!(r.candidates.iter().any(|c| c.source == "google" || c.also.iter().any(|a| a == "Google Dịch")));
 }
 

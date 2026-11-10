@@ -9,3 +9,4 @@ pub mod sources;
 pub use glossary::{Glossary, Term};
 pub use lang::Direction;
 pub use lookup::LookupResult;
+pub use reqwest;

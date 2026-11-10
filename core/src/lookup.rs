@@ -94,6 +94,21 @@ fn label(source: &str) -> &'static str {
     }
 }
 
+/// Viết thường chữ cái đầu (tên bài Wikipedia luôn viết hoa chữ đầu), trừ khi từ đầu là viết tắt như BERT, GPU.
+fn lower_first(s: &str) -> String {
+    let first_word = s.split_whitespace().next().unwrap_or("");
+    let is_acronym = first_word.chars().filter(|c| c.is_alphabetic()).count() >= 2
+        && first_word.chars().filter(|c| c.is_alphabetic()).all(char::is_uppercase);
+    if is_acronym {
+        return s.to_string();
+    }
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) => c.to_lowercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
 /// Ghép kết quả thành danh sách gợi ý. Hàm thuần, không gọi mạng.
 pub fn merge(q: &str, dir: Direction, glossary: Vec<Term>, in_text: Vec<Term>, online: Online) -> LookupResult {
     let mut errors = Vec::new();
@@ -118,7 +133,11 @@ pub fn merge(q: &str, dir: Direction, glossary: Vec<Term>, in_text: Vec<Term>, o
         Some(Ok(Some(w))) => {
             if let Some(t) = &w.linked_title {
                 let lang = if dir == Direction::EnVi { "tiếng Việt" } else { "tiếng Anh" };
-                push(&sources::strip_wiki_qualifier(t), "wikipedia", format!("Tên bài Wikipedia {lang}"));
+                let mut title = sources::strip_wiki_qualifier(t);
+                if q == q.to_lowercase() {
+                    title = lower_first(&title);
+                }
+                push(&title, "wikipedia", format!("Tên bài Wikipedia {lang}"));
             }
             wiki = Some(w);
         }
@@ -204,7 +223,7 @@ mod tests {
         let r = merge("overfitting", Direction::EnVi, vec![], vec![], online);
         let texts: Vec<_> = r.candidates.iter().map(|c| c.text.as_str()).collect();
         // "trang bị quá mức" được 2 nguồn đồng ý nên lên đầu; bản trùng chữ hoa bị gộp.
-        assert_eq!(texts, vec!["trang bị quá mức", "Sự quá khớp", "quá khớp"]);
+        assert_eq!(texts, vec!["trang bị quá mức", "sự quá khớp", "quá khớp"]);
         assert_eq!(r.candidates[0].also, vec!["Bộ nhớ dịch".to_string()]);
         assert!(r.candidates[0].detail.contains("Bộ nhớ dịch cũng gợi ý"));
         assert_eq!(r.mode, "term");
@@ -213,10 +232,27 @@ mod tests {
     }
 
     #[test]
+    fn lowercases_wikipedia_title_when_query_is_lowercase() {
+        // Tên bài Wikipedia luôn viết hoa chữ đầu, nhưng thuật ngữ giữa câu thì viết thường.
+        let online = Online { wiki: Some(Ok(Some(wiki(Some("Sự quá khớp"))))), ..Default::default() };
+        let r = merge("overfitting", Direction::EnVi, vec![], vec![], online);
+        assert_eq!(r.candidates[0].text, "sự quá khớp");
+
+        let online = Online { wiki: Some(Ok(Some(wiki(Some("Deep learning"))))), ..Default::default() };
+        assert_eq!(merge("học sâu", Direction::ViEn, vec![], vec![], online).candidates[0].text, "deep learning");
+
+        // Người dùng gõ hoa (tên riêng) thì giữ nguyên; từ viết tắt cũng giữ nguyên.
+        let online = Online { wiki: Some(Ok(Some(wiki(Some("Python (ngôn ngữ lập trình)"))))), ..Default::default() };
+        assert_eq!(merge("Python", Direction::EnVi, vec![], vec![], online).candidates[0].text, "Python");
+        let online = Online { wiki: Some(Ok(Some(wiki(Some("BERT (mô hình ngôn ngữ)"))))), ..Default::default() };
+        assert_eq!(merge("bert", Direction::EnVi, vec![], vec![], online).candidates[0].text, "BERT");
+    }
+
+    #[test]
     fn strips_wikipedia_qualifier() {
         let online = Online { wiki: Some(Ok(Some(wiki(Some("Cơ chế chú ý (học máy)"))))), ..Default::default() };
         let r = merge("attention", Direction::EnVi, vec![], vec![], online);
-        assert_eq!(r.candidates[0].text, "Cơ chế chú ý");
+        assert_eq!(r.candidates[0].text, "cơ chế chú ý");
         assert_eq!(r.candidates[0].source, "wikipedia");
     }
 
