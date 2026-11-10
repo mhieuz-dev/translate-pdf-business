@@ -202,11 +202,8 @@
       if (online.memory.ok) online.memory.v.forEach((m) => push(m.text, 'mymemory', `Bản dịch người dùng, độ khớp ${Math.round(m.score * 100)}%`));
       else errors.push('mymemory');
     }
-    let dict = { phonetic: null, definitions: [] };
-    if (online.dict) {
-      if (online.dict.ok) dict = online.dict.v;
-      else errors.push('dictionary');
-    }
+    // Từ điển chỉ bổ sung phần giải nghĩa: lỗi (thường là 404 với cụm từ, đôi khi thiếu CORS) thì bỏ qua.
+    const dict = online.dict && online.dict.ok ? online.dict.v : { phonetic: null, definitions: [] };
     cands.forEach((c) => { if (c.also.length) c.detail = `${c.detail} · ${c.also.join(', ')} cũng gợi ý`; });
     // Sắp xếp ổn định: nhiều nguồn đồng ý lên trước.
     const sorted = cands.map((c, i) => [c, i]).sort((a, b) => b[0].also.length - a[0].also.length || a[1] - b[1]).map((x) => x[0]);

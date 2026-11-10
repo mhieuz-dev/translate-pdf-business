@@ -15,3 +15,5 @@ src-tauri/gen/
 .env
 *.log
 /target/
+.vercel
+.vercel/

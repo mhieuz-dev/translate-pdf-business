@@ -104,7 +104,7 @@ test('ghi lỗi theo từng nguồn', () => {
   const r = W.merge('deep learning', 'en-vi', [], [], {
     wiki: { ok: false }, google: ok('học sâu'), memory: { ok: false }, dict: { ok: false },
   });
-  assert.deepEqual(r.errors, ['wikipedia', 'mymemory', 'dictionary']);
+  assert.deepEqual(r.errors, ['wikipedia', 'mymemory']);
   assert.equal(r.candidates.length, 1);
 });
 test('chế độ câu', () => {

@@ -158,12 +158,11 @@ pub fn merge(q: &str, dir: Direction, glossary: Vec<Term>, in_text: Vec<Term>, o
         Some(Err(_)) => errors.push("mymemory".to_string()),
         None => {}
     }
-    let mut dict = DictInfo::default();
-    match online.dict {
-        Some(Ok(d)) => dict = d,
-        Some(Err(_)) => errors.push("dictionary".to_string()),
-        None => {}
-    }
+    // Từ điển chỉ bổ sung phần giải nghĩa: lỗi (thường là 404 với cụm từ) thì bỏ qua, không báo.
+    let dict = match online.dict {
+        Some(Ok(d)) => d,
+        _ => DictInfo::default(),
+    };
 
     // Ghi chú sự đồng thuận vào phần mô tả để người dùng thấy ngay.
     for c in &mut cands {
@@ -280,7 +279,8 @@ mod tests {
             dict: Some(Err("x".into())),
         };
         let r = merge("deep learning", Direction::EnVi, vec![], vec![], online);
-        assert_eq!(r.errors, vec!["wikipedia", "mymemory", "dictionary"]);
+        // Từ điển chỉ là nguồn phụ (giải nghĩa) nên lỗi của nó không báo cho người dùng.
+        assert_eq!(r.errors, vec!["wikipedia", "mymemory"]);
         assert_eq!(r.candidates.len(), 1);
     }
 
