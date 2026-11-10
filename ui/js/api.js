@@ -8,7 +8,7 @@ const USE_MOCK = !IN_APP && new URLSearchParams(location.search).has('mock');
 const IS_WEB = !IN_APP && !USE_MOCK;
 const GITHUB_URL = 'https://github.com/mhieuz-dev/thong-ngu';
 const DOWNLOAD_URL = `${GITHUB_URL}/releases/latest`;
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.1.1';
 
 if (!IN_APP) document.documentElement.classList.add('web');
 
