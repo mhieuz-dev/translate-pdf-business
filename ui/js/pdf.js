@@ -145,13 +145,19 @@ function startUpload(file) {
   xhr.send(form);
 }
 
+// Số lượt trước mình (máy dịch một file một lúc, ai gửi trước dịch trước).
+// Máy chủ cũ chưa có "ahead" thì suy từ "position" (chỉ đếm file đang chờ).
+function queueAhead(st) {
+  return typeof st.ahead === 'number' ? st.ahead : Math.max(0, (st.position || 1) - 1);
+}
+
 function renderJob(el, st) {
   const acts = $('.job-actions', el);
   const w = pdfState.waits.get(st.id);
   if (w) waitFromJob(w, st);
   if (st.status === 'queued') {
-    const ahead = Math.max(0, (st.position || 1) - 1);
-    setJobStatus(el, ahead ? `Đang chờ, trước bạn còn ${ahead} file` : 'Sắp tới lượt...', { indet: true });
+    const ahead = queueAhead(st);
+    setJobStatus(el, ahead ? `Có người đang dịch, trước bạn còn ${ahead} lượt` : 'Sắp tới lượt...', { indet: true });
   } else if (st.status === 'running') {
     setJobStatus(el, `Đang dịch ${st.pages} trang · ${st.stage || 'Chuẩn bị'} · ${Math.round(st.percent)}%`, { percent: Math.max(10, st.percent) });
   } else if (st.status === 'done') {
@@ -293,8 +299,8 @@ function waitClose(w) {
 // Trạng thái từ máy chủ -> màn hình chờ. Phần trăm: tải lên chiếm 10% đầu, phần dịch 90% còn lại.
 function waitFromJob(w, st) {
   if (st.status === 'queued') {
-    const ahead = Math.max(0, (st.position || 1) - 1);
-    waitSet(w, { percent: 10, step: 'file', detail: ahead ? `Đang xếp hàng, trước bạn còn ${ahead} tập tin` : 'Sắp tới lượt của bạn' });
+    const ahead = queueAhead(st);
+    waitSet(w, { percent: 10, step: 'file', detail: ahead ? `Hiện có người đang dịch, vui lòng chờ. Trước bạn còn ${ahead} lượt, máy rảnh là tới bạn` : 'Sắp tới lượt của bạn' });
   } else if (st.status === 'running') {
     const step = st.step === 'translate' || st.step === 'finish' ? st.step : 'file';
     waitSet(w, { percent: 10 + st.percent * 0.9, step, detail: `${st.stage || 'Chuẩn bị'} · ${st.pages} trang` });

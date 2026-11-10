@@ -175,6 +175,7 @@ class Job:
             "name": self.name,
             "status": self.status,
             "position": position,
+            "ahead": ahead_of(self),  # số lượt phía trước, TÍNH CẢ file đang dịch
             "percent": round(self.percent, 1),
             "stage": self.stage,
             "step": self.status if self.status in ("queued", "done", "error") else stage_step(self.stage),
@@ -198,6 +199,16 @@ def queue_position(job: Job) -> int | None:
         return None
     waiting = sorted((j for j in JOBS.values() if j.status == "queued"), key=lambda j: j.created)
     return 1 + next(i for i, j in enumerate(waiting) if j.id == job.id)
+
+
+def ahead_of(job: Job) -> int:
+    """Máy chỉ dịch một file một lúc, ai gửi trước dịch trước: đếm file đang dịch + file chờ gửi trước."""
+    if job.status == "running":
+        return 0
+    if job.status != "queued":
+        return 0
+    return sum(1 for j in JOBS.values()
+               if j.status == "running" or (j.status == "queued" and j.created < job.created))
 
 
 async def run_job(job: Job) -> None:

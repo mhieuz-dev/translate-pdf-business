@@ -162,6 +162,20 @@ def test_per_ip_limit_and_queue_position(client, monkeypatch):
     assert upload(client).status_code == 202  # xong rồi thì gửi tiếp được
 
 
+def test_waiting_counts_the_job_being_translated(client, monkeypatch):
+    """Có người đang dịch thì người tới sau phải thấy còn lượt phía trước, không phải "sắp tới lượt"."""
+    monkeypatch.setenv("FAKE_SLEEP", "1.0")
+    a = upload(client).json()
+    deadline = time.time() + 10
+    while client.get(f"/jobs/{a['id']}").json()["status"] != "running" and time.time() < deadline:
+        time.sleep(0.05)
+    b = upload(client).json()
+    assert b["status"] == "queued" and b["ahead"] == 1
+    assert client.get(f"/jobs/{a['id']}").json()["ahead"] == 0  # đang dịch: không còn ai phía trước
+    wait_done(client, a["id"])
+    wait_done(client, b["id"])
+
+
 def test_error_from_translator_is_friendly(client, monkeypatch):
     monkeypatch.setenv("FAKE_MODE", "error")
     st = wait_done(client, upload(client).json()["id"])
