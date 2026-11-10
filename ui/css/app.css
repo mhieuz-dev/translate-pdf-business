@@ -386,3 +386,10 @@ body.popup { background: #fff; }
 
 /* Chế độ câu: không có khung lưu bên phải thì cho kết quả rộng hết */
 .result:has(> #save-card[hidden]) { grid-template-columns: 1fr; }
+
+/* Bản web và bản app dùng chung một trang; phần nào chỉ có ở bản nào thì ẩn ở bản kia */
+html:not(.web) [data-only="web"], html.web [data-only="app"] { display: none !important; }
+
+/* Viền focus theo tông teal, chỉ hiện khi dùng bàn phím (Tab) */
+button:focus, .cand:focus, .chip:focus { outline: none; }
+button:focus-visible, .cand:focus-visible, .chip:focus-visible, a:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }

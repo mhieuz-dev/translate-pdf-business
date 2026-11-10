@@ -290,6 +290,7 @@ $('#g-import').addEventListener('click', async () => {
 // ================= Dịch PDF =================
 async function checkPdf() {
   const st = await call('pdf_status');
+  if (st.web) return st; // bản web: thẻ "tải app desktop" đã hiện sẵn
   $('#pdf-missing').hidden = st.found;
   $('#pdf-ready').hidden = !st.found;
   $('#pdf-missing-detail').textContent = st.found ? '' : (st.detail || '');
@@ -418,7 +419,8 @@ $('#set-hotkey').addEventListener('click', async () => {
   } catch (err) { toast(String(err), 'err'); }
 });
 $('#set-open-data').addEventListener('click', () => call('open_path', { path: state.info.data_dir }));
-$('#set-github').addEventListener('click', () => call('open_url', { url: 'https://github.com/mhieuz-dev/thong-ngu' }));
+$('#set-github').addEventListener('click', () => call('open_url', { url: GITHUB_URL }));
+$$('[data-download]').forEach((b) => b.addEventListener('click', () => call('open_url', { url: DOWNLOAD_URL })));
 
 // ================= Nhận yêu cầu tra từ phím tắt / cửa sổ tra nhanh =================
 onEvent('lookup-request', (q) => {

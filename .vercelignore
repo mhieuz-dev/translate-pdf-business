@@ -1,0 +1,4 @@
+# Bản web chỉ cần thư mục ui/; không tải mã Rust, venv hay file build lên Vercel
+/*
+!/ui
+!/vercel.json

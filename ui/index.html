@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Thông Ngữ</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -23,7 +24,11 @@
         <button data-page="settings"><i data-icon="settings"></i>Cài đặt</button>
       </nav>
       <div class="sidebar-foot">
-        <div class="hotkey-hint" id="hotkey-hint">Bôi đen chữ ở bất kỳ đâu rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd> để tra nhanh.</div>
+        <div class="hotkey-hint" id="hotkey-hint" data-only="app">Bôi đen chữ ở bất kỳ đâu rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd> để tra nhanh.</div>
+        <div data-only="web">
+          <div class="hotkey-hint">Bôi đen là tra ở mọi ứng dụng và dịch cả file PDF: có trong app desktop miễn phí.</div>
+          <button class="btn btn-primary btn-sm" style="width:100%;margin-top:10px" data-download>Tải app desktop</button>
+        </div>
       </div>
     </aside>
 
@@ -49,7 +54,8 @@
             <div class="chips" id="recent"></div>
           </div>
           <div class="card empty-hero">
-            <div class="tip"><div class="tip-num">1</div><h3>Bôi đen là tra</h3><p>Đang đọc PDF hay web, bôi đen thuật ngữ rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd>. Cửa sổ nhỏ hiện ngay kết quả.</p></div>
+            <div class="tip" data-only="app"><div class="tip-num">1</div><h3>Bôi đen là tra</h3><p>Đang đọc PDF hay web, bôi đen thuật ngữ rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd>. Cửa sổ nhỏ hiện ngay kết quả.</p></div>
+            <div class="tip" data-only="web"><div class="tip-num">1</div><h3>Dán là tra</h3><p>Copy thuật ngữ hoặc cả câu trong paper, dán vào ô phía trên rồi bấm Enter. Gõ tiếng Việt thì tự tra ngược sang tiếng Anh.</p></div>
             <div class="tip"><div class="tip-num">2</div><h3>Chọn cách dịch của bạn</h3><p>So sánh các gợi ý, chọn cách dịch hợp ngữ cảnh rồi lưu vào bảng thuật ngữ riêng.</p></div>
             <div class="tip"><div class="tip-num">3</div><h3>Viết thống nhất</h3><p>Lần sau tra lại, cách dịch bạn đã chọn luôn hiện đầu tiên. Tra ngược Việt → Anh khi viết bài.</p></div>
           </div>
@@ -101,7 +107,7 @@
           <button class="btn btn-primary" id="g-add"><i data-icon="plus"></i>Thêm thuật ngữ</button>
         </div>
         <div class="toolbar">
-          <div class="search-mini"><i data-icon="search"></i><input class="input" id="g-q" placeholder="Tìm theo tiếng Anh hoặc tiếng Việt (gõ không dấu cũng được)"></div>
+          <div class="search-mini"><i data-icon="search"></i><input class="input" id="g-q" placeholder="Tìm thuật ngữ, gõ không dấu cũng được"></div>
           <select class="select" id="g-field"><option value="">Tất cả chuyên ngành</option></select>
           <button class="btn btn-outline" id="g-import"><i data-icon="upload"></i>Nhập CSV</button>
           <button class="btn btn-outline" id="g-export"><i data-icon="download"></i>Xuất CSV</button>
@@ -127,13 +133,19 @@
           <h1>Dịch cả bài paper</h1>
           <p>Giữ nguyên bố cục, công thức, bảng và hình. Chạy bằng PDFMathTranslate ngay trên máy bạn.</p>
         </div>
+        <div class="card empty" data-only="web">
+          <div class="empty-icon"><i data-icon="file"></i></div>
+          <h3>Dịch cả file PDF có trong app desktop</h3>
+          <p>Dịch nguyên bài paper mà vẫn giữ bố cục, công thức, bảng và hình cần chạy trên máy bạn. Tải app Thông Ngữ miễn phí cho Windows, macOS và Linux.</p>
+          <button class="btn btn-primary" style="margin-top:18px" data-download><i data-icon="download"></i>Tải app desktop</button>
+        </div>
         <div class="card card-pad" id="pdf-missing" hidden>
           <div class="card-title"><i data-icon="alert"></i>Chưa tìm thấy PDFMathTranslate</div>
           <p class="muted" style="margin:0 0 12px">Cài một lần bằng lệnh dưới đây (miễn phí), rồi bấm "Kiểm tra lại".</p>
           <div class="code" style="display:block;padding:10px 12px">pip install pdf2zh-next</div>
           <div class="row" style="margin-top:14px"><button class="btn btn-outline btn-sm" id="pdf-recheck">Kiểm tra lại</button><span class="small muted" id="pdf-missing-detail"></span></div>
         </div>
-        <div id="pdf-ready">
+        <div id="pdf-ready" data-only="app">
           <div class="dropzone" id="dropzone">
             <div class="empty-icon"><i data-icon="upload"></i></div>
             <h3>Kéo thả file PDF vào đây</h3>
@@ -157,15 +169,22 @@
           <h1>Cài đặt</h1>
         </div>
         <div class="card card-pad">
-          <div class="setting">
+          <div class="setting" data-only="web">
+            <div class="setting-text"><b>Dữ liệu của bạn</b><span>Bảng thuật ngữ được lưu ngay trong trình duyệt này, không gửi lên máy chủ nào. Xoá dữ liệu trình duyệt sẽ mất bảng, nên thỉnh thoảng hãy bấm "Xuất CSV" ở mục Bảng thuật ngữ để sao lưu.</span></div>
+          </div>
+          <div class="setting" data-only="web">
+            <div class="setting-text"><b>App desktop</b><span>Bôi đen chữ ở bất kỳ ứng dụng nào rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd> để tra, dịch cả file PDF giữ nguyên bố cục. Miễn phí, mã nguồn mở.</span></div>
+            <button class="btn btn-primary btn-sm" data-download>Tải app</button>
+          </div>
+          <div class="setting" data-only="app">
             <div class="setting-text"><b>Phím tắt tra nhanh</b><span id="set-hotkey-text">Bôi đen chữ ở bất kỳ ứng dụng nào rồi bấm phím tắt để mở cửa sổ tra nhanh.</span></div>
             <button class="btn btn-outline btn-sm" id="set-hotkey">Cài phím tắt</button>
           </div>
-          <div class="setting">
+          <div class="setting" data-only="app">
             <div class="setting-text"><b>Thư mục dữ liệu</b><span>Bảng thuật ngữ được lưu trên máy bạn tại <span class="code" id="set-data"></span></span></div>
             <button class="btn btn-outline btn-sm" id="set-open-data">Mở thư mục</button>
           </div>
-          <div class="setting">
+          <div class="setting" data-only="app">
             <div class="setting-text"><b>PDFMathTranslate</b><span id="set-pdf">Đang kiểm tra...</span></div>
           </div>
           <div class="setting">
@@ -184,6 +203,7 @@
   <div class="toasts" id="toasts"></div>
 
   <script src="js/icons.js"></script>
+  <script src="js/web-backend.js"></script>
   <script src="js/api.js"></script>
   <script src="js/common.js"></script>
   <script src="js/main.js"></script>
