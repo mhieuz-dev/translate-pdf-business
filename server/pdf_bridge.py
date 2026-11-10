@@ -137,6 +137,12 @@ async def main():
         note += "; " + tighten_line_spacing()
     except Exception as e:
         note += f"; không chỉnh được khoảng cách dòng: {e}"
+    try:
+        import thongngu_bing
+
+        note += "; " + thongngu_bing.install()
+    except Exception as e:
+        note += f"; không sửa được giới hạn 1000 ký tự của Bing: {e}"
     print(f"[thongngu] {note}", file=sys.stderr, flush=True)
     emit({"type": "progress", "percent": 0, "stage": "Chuẩn bị mô hình nhận dạng bố cục"})
     babeldoc.assets.assets.warmup()
