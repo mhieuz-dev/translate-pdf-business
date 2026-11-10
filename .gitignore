@@ -23,3 +23,6 @@ server/data/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# cong cu do bo cuc khi phat trien (khong can de chay)
+server/tools/

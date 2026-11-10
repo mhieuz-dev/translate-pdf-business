@@ -103,23 +103,19 @@ def install_paper_fonts(pdf_path: str) -> str:
     return f"dùng {style} cho bản dịch (font chính bản gốc: {body})"
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # chạy với python -I nên phải tự thêm
+
+
 def tighten_line_spacing() -> str:
-    """BabelDOC đặt khoảng cách dòng = 1,3 x chiều cao chữ rồi bóp cỡ chữ cho vừa khung. LaTeX dùng
-    khoảng cách sát hơn, nên đặt sát lại để chữ dịch ít bị bóp nhỏ (gần cỡ bản gốc hơn)."""
-    skip = float(os.environ.get("THONGNGU_LINE_SKIP", "1.12") or 0)  # đo 10-11-2026: cỡ chữ 10,0 pt so với 10,1 pt bản gốc
-    if not skip:
-        return "giữ khoảng cách dòng mặc định"
-    from babeldoc.format.pdf.document_il.midend.typesetting import Typesetting
-    original = Typesetting._layout_typesetting_units
-    if getattr(original, "_thongngu", False):
-        return f"khoảng cách dòng {skip}"
+    """Khoảng cách dòng đúng như bản gốc + căn đều hai lề (xem thongngu_layout.py)."""
+    if os.environ.get("THONGNGU_LAYOUT", "1") == "0":  # tắt để so với bố cục gốc của BabelDOC
+        return "bố cục mặc định của BabelDOC"
+    import thongngu_layout
 
-    def patched(self, units, box, scale, line_skip, *args, **kwargs):
-        return original(self, units, box, scale, line_skip if self.is_cjk else skip, *args, **kwargs)
-
-    patched._thongngu = True
-    Typesetting._layout_typesetting_units = patched
-    return f"khoảng cách dòng {skip}"
+    default = float(os.environ.get("THONGNGU_LINE_SKIP", "1.12") or 1.12)
+    justify = os.environ.get("THONGNGU_JUSTIFY", "1") != "0"
+    hs_min = float(os.environ.get("THONGNGU_MIN_WIDTH", "0.78") or 0.78)  # 0.78: đo 10-11, cỡ chữ 21/21 đoạn đúng, chữ vẫn dễ đọc
+    return thongngu_layout.install(line_skip_default=default, justify=justify, hs_min=hs_min)
 
 
 async def main():
