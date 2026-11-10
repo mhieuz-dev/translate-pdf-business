@@ -164,6 +164,7 @@ class Job:
             "stage": self.stage,
             "error": self.error,
             "pages": len(self.pages),
+            "page_numbers": self.pages,  # số trang thật trong file gốc, để trình đọc ghi "Trang 7"
             "files": sorted(self.files),
             "seconds": round((self.finished or time.time()) - (self.started or time.time()), 1) if self.started else None,
             "expires_at": self.created + S.keep_hours * 3600,
@@ -189,6 +190,7 @@ async def run_job(job: Job) -> None:
         S.python, "-I", str(S.bridge), str(job.dir / "input.pdf"),
         f"--{S.engine}", "--lang-out", job.lang, "--output", str(job.dir / "out"),
         "--qps", str(S.qps), "--pages", pages_arg(job.pages),
+        "--watermark-output-mode", "no_watermark",  # 2.9 mặc định chèn dòng chữ Trung vào bản dịch
     ]
     if len(job.pages) < job.total_pages:
         args.append("--only-include-translated-page")  # chỉ giữ đúng các trang người dùng chọn
@@ -247,6 +249,8 @@ async def run_job(job: Job) -> None:
     shutil.rmtree(job.dir / "out", ignore_errors=True)
     job.finished = time.time()
     if job.files and not job.error:
+        if (job.dir / "original.pdf").is_file():
+            job.files["original"] = "original.pdf"  # bản gốc đúng các trang đã dịch, để đọc song song
         job.status, job.percent, job.stage = "done", 100.0, "Xong"
     else:
         job.status = "error"
@@ -371,6 +375,12 @@ async def create_job(
               lang=lang, dual=dual, pages=chosen, total_pages=total)
     job.dir.mkdir(parents=True)
     (job.dir / "input.pdf").write_bytes(data)
+    # Bản gốc chỉ gồm các trang được chọn, để web đặt cạnh bản dịch theo đúng từng trang.
+    src = pymupdf.open(stream=data, filetype="pdf")
+    if len(chosen) < total:
+        src.select([p - 1 for p in chosen])
+    src.save(job.dir / "original.pdf", garbage=3, deflate=True)
+    src.close()
     JOBS[job.id] = job
     await QUEUE.put(job.id)
     return job.public(queue_position(job))
@@ -395,7 +405,7 @@ async def job_file(job_id: str, kind: str, download: bool = False) -> FileRespon
     if kind not in job.files:
         raise HTTPException(404, "Chưa có file này.")
     stem = Path(job.name).stem
-    suffix = "song-ngu" if kind == "dual" else job.lang
+    suffix = {"dual": "song-ngu", "original": "ban-goc"}.get(kind, job.lang)
     return FileResponse(
         job.dir / job.files[kind],
         media_type="application/pdf",

@@ -101,20 +101,28 @@ def test_full_flow_with_page_selection(client):
     r = upload(client, pages="1-2", lang="vi", dual="true")
     assert r.status_code == 202
     job = r.json()
-    assert len(job["id"]) == 32 and job["pages"] == 2
+    assert len(job["id"]) == 32 and job["pages"] == 2 and job["page_numbers"] == [1, 2]
     st = wait_done(client, job["id"])
     assert st["status"] == "done", st
-    assert st["percent"] == 100 and st["files"] == ["dual", "mono"]
+    assert st["percent"] == 100 and st["files"] == ["dual", "mono", "original"]
     args = json.loads((srv.S.data_dir / job["id"] / "args.json").read_text())
     assert args[args.index("--pages") + 1] == "1-2"
     assert "--only-include-translated-page" in args  # chỉ giữ trang đã chọn
     assert args[args.index("--qps") + 1] == "12" and "--bing" in args and "--no-dual" not in args
+    # không ép kiểu chữ: pdf_bridge tự chọn font giống bản gốc (Termes / Latin Modern) cho từng đoạn
+    assert "--primary-font-family" not in args
+    # pdf2zh 2.9 mặc định chèn dòng watermark tiếng Trung "本文档由..." vào bản dịch
+    assert args[args.index("--watermark-output-mode") + 1] == "no_watermark"
     f = client.get(f"/jobs/{job['id']}/files/mono")
     assert f.status_code == 200 and f.headers["content-type"] == "application/pdf" and f.content.startswith(b"%PDF")
     assert f.headers["content-disposition"].startswith("inline")
     d = client.get(f"/jobs/{job['id']}/files/dual?download=1")
     assert d.headers["content-disposition"].startswith("attachment")
     assert "bai%20bao.song-ngu.pdf" in d.headers["content-disposition"] or "bai bao.song-ngu.pdf" in d.headers["content-disposition"]
+    # bản gốc trả về đúng các trang đã chọn để đặt cạnh bản dịch
+    o = client.get(f"/jobs/{job['id']}/files/original")
+    orig = pymupdf.open(stream=o.content, filetype="pdf")
+    assert orig.page_count == 2 and "Page 1." in orig[0].get_text() and "Page 2." in orig[1].get_text()
     # thư mục tạm của pdf2zh đã dọn, chỉ còn input + bản dịch
     assert not (srv.S.data_dir / job["id"] / "out").exists()
 
@@ -122,7 +130,8 @@ def test_full_flow_with_page_selection(client):
 def test_all_pages_and_no_dual(client):
     job = upload(client, dual="false").json()
     st = wait_done(client, job["id"])
-    assert st["files"] == ["mono"]
+    assert st["files"] == ["mono", "original"]
+    assert pymupdf.open(stream=client.get(f"/jobs/{job['id']}/files/original").content, filetype="pdf").page_count == 3
     args = json.loads((srv.S.data_dir / job["id"] / "args.json").read_text())
     assert "--no-dual" in args and "--only-include-translated-page" not in args
 
@@ -157,6 +166,7 @@ def test_error_from_translator_is_friendly(client, monkeypatch):
     monkeypatch.setenv("FAKE_MODE", "error")
     st = wait_done(client, upload(client).json()["id"])
     assert st["status"] == "error" and "quá nhiều yêu cầu" in st["error"] and st["files"] == []
+    assert client.get(f"/jobs/{st['id']}/files/original").status_code == 404
 
 
 def test_crash_without_output_is_error(client, monkeypatch):
