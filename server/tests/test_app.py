@@ -232,3 +232,21 @@ def test_shutdown_kills_running_translation(tmp_path, monkeypatch):
     alive = subprocess.run(["pgrep", "-f", f"{job['id']}/input.pdf"], capture_output=True, text=True).stdout.strip()
     assert alive == "", f"tiến trình dịch còn sống sau khi tắt máy chủ: {alive}"
     srv.JOBS.clear()
+
+
+def test_stage_to_step_mapping():
+    # 3 bước lớn cho màn hình chờ: chuẩn bị -> dịch văn bản -> hoàn thiện tài liệu
+    assert srv.stage_step("Nhận dạng bố cục") == "prepare"
+    assert srv.stage_step("Nhận dạng bảng") == "prepare"
+    assert srv.stage_step("Dịch các đoạn văn") == "translate"
+    assert srv.stage_step("Dàn trang") == "finish"
+    assert srv.stage_step("Lưu file") == "finish"
+    assert srv.stage_step("") == "prepare"
+    assert srv.STAGE_VI["Parse Table"] == "Nhận dạng bảng"
+
+
+def test_status_reports_step(client):
+    job = upload(client).json()
+    assert job["step"] == "queued"
+    st = wait_done(client, job["id"])
+    assert st["step"] == "done"

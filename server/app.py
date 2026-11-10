@@ -110,6 +110,9 @@ STAGE_VI = {
     "Parse Page Layout": "Nhận dạng bố cục",
     "Parse Paragraphs": "Tách đoạn văn",
     "Parse Formulas and Styles": "Nhận dạng công thức",
+    "Parse Table": "Nhận dạng bảng",
+    "Automatic Term Extraction": "Trích thuật ngữ",
+    "Add Debug Information": "Ghi thông tin",
     "Remove Char Descent": "Chuẩn hoá chữ",
     "Translate Paragraphs": "Dịch các đoạn văn",
     "Typesetting": "Dàn trang",
@@ -118,6 +121,18 @@ STAGE_VI = {
     "Subset font": "Tối ưu font",
     "Save PDF": "Lưu file",
 }
+
+
+# 3 bước lớn hiện trên màn hình chờ của web: chuẩn bị -> dịch văn bản -> hoàn thiện tài liệu.
+FINISH_STAGES = {"Dàn trang", "Nhúng font", "Vẽ trang", "Tối ưu font", "Lưu file", "Ghi thông tin", "Xong"}
+
+
+def stage_step(stage_vi: str) -> str:
+    if stage_vi == "Dịch các đoạn văn":
+        return "translate"
+    if stage_vi in FINISH_STAGES:
+        return "finish"
+    return "prepare"
 
 
 def friendly_error(msg: str) -> str:
@@ -162,6 +177,7 @@ class Job:
             "position": position,
             "percent": round(self.percent, 1),
             "stage": self.stage,
+            "step": self.status if self.status in ("queued", "done", "error") else stage_step(self.stage),
             "error": self.error,
             "pages": len(self.pages),
             "page_numbers": self.pages,  # số trang thật trong file gốc, để trình đọc ghi "Trang 7"
