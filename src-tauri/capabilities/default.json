@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Quyền cho cửa sổ chính và cửa sổ tra nhanh",
+  "windows": ["main", "popup"],
+  "permissions": ["core:default"]
+}
