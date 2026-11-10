@@ -1,9 +1,9 @@
-/* Thông Ngữ - giao diện theo tông UEH (teal #005F69), font Poppins */
+/* Thông Ngữ - giao diện theo tông UEH (teal #005F69), font Be Vietnam Pro */
 
-@font-face { font-family: "Poppins"; font-weight: 400; src: url("../fonts/Poppins-Regular.ttf") format("truetype"); }
-@font-face { font-family: "Poppins"; font-weight: 500; src: url("../fonts/Poppins-Medium.ttf") format("truetype"); }
-@font-face { font-family: "Poppins"; font-weight: 600; src: url("../fonts/Poppins-SemiBold.ttf") format("truetype"); }
-@font-face { font-family: "Poppins"; font-weight: 700; src: url("../fonts/Poppins-Bold.ttf") format("truetype"); }
+@font-face { font-family: "Be Vietnam Pro"; font-weight: 400; src: url("../fonts/BeVietnamPro-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Be Vietnam Pro"; font-weight: 500; src: url("../fonts/BeVietnamPro-Medium.ttf") format("truetype"); }
+@font-face { font-family: "Be Vietnam Pro"; font-weight: 600; src: url("../fonts/BeVietnamPro-SemiBold.ttf") format("truetype"); }
+@font-face { font-family: "Be Vietnam Pro"; font-weight: 700; src: url("../fonts/BeVietnamPro-Bold.ttf") format("truetype"); }
 
 :root {
   --teal: #005f69;
@@ -33,7 +33,7 @@
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: "Poppins", system-ui, sans-serif;
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.55;
   color: var(--ink);
