@@ -393,3 +393,32 @@ html:not(.web) [data-only="web"], html.web [data-only="app"] { display: none !im
 /* Viền focus theo tông teal, chỉ hiện khi dùng bàn phím (Tab) */
 button:focus, .cand:focus, .chip:focus { outline: none; }
 button:focus-visible, .cand:focus-visible, .chip:focus-visible, a:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ---------- Điện thoại (bản web) ---------- */
+@media (max-width: 960px) {
+  .brand > div:last-child { display: none; }
+}
+@media (max-width: 640px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .sidebar { flex-direction: row; align-items: center; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .brand { padding: 0; }
+  .brand-mark { width: 34px; height: 34px; font-size: 17px; border-radius: 10px; }
+  .nav { flex-direction: row; margin-left: auto; gap: 2px; }
+  .nav button { padding: 9px 11px; }
+  .page { padding: 20px 16px 48px; }
+  .page-head h1 { font-size: 22px; }
+  .page-head.row { flex-wrap: wrap; }
+  .search-box { padding: 6px 6px 6px 14px; gap: 6px; border-radius: 16px; }
+  .search-box > svg { display: none; }
+  .search-box input { font-size: 16px; }
+  .dir-toggle { padding: 6px 9px; }
+  .dir-toggle.auto::before { content: none; }
+  .search-box .btn { padding: 10px 14px; }
+  .result-term { font-size: 24px; }
+  .cand { flex-wrap: wrap; row-gap: 4px; }
+  .toolbar .search-mini { min-width: 100%; }
+  .toolbar .select { flex: 1; }
+  .table-wrap { overflow-x: auto; }
+  .table-wrap table { min-width: 600px; }
+  .card-pad { padding: 18px; }
+}
