@@ -17,3 +17,9 @@ src-tauri/gen/
 /target/
 .vercel
 .vercel/
+
+# du lieu chay thu may chu PDF
+server/data/
+__pycache__/
+*.pyc
+.pytest_cache/

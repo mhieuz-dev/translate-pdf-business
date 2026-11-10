@@ -1,4 +1,4 @@
-// Test bản web bằng CÙNG dữ liệu thật và cùng tình huống với test Rust trong core/.
+// Test lõi bản web bằng dữ liệu thật đã lưu từ các nguồn (web-tests/fixtures).
 // Chạy: node --test web-tests/
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const W = require('../ui/js/web-backend.js');
 
-const fx = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'core', 'tests', 'fixtures', name), 'utf8'));
+const fx = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8'));
 
 function memStorage() {
   const m = new Map();
