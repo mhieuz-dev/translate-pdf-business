@@ -32,6 +32,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.delenv("FAKE_MODE", raising=False)
     monkeypatch.delenv("FAKE_SLEEP", raising=False)
     srv.JOBS.clear()
+    srv.RECENT.clear()
     with TestClient(srv.app) as c:
         yield c
     srv.JOBS.clear()
@@ -174,6 +175,61 @@ def test_waiting_counts_the_job_being_translated(client, monkeypatch):
     assert client.get(f"/jobs/{a['id']}").json()["ahead"] == 0  # đang dịch: không còn ai phía trước
     wait_done(client, a["id"])
     wait_done(client, b["id"])
+
+
+def runs(path):
+    return len(path.read_text().splitlines()) if path.exists() else 0
+
+
+def test_same_file_reuses_finished_translation(client, monkeypatch, tmp_path):
+    """Cả lớp cùng dịch một paper: người sau nhận ngay bản đã dịch, máy không dịch lại."""
+    counter = tmp_path / "runs.txt"
+    monkeypatch.setenv("FAKE_RUNS", str(counter))
+    pdf = make_pdf()  # cùng một file (pymupdf mỗi lần tạo ra byte khác vì có ghi giờ tạo)
+    a = wait_done(client, upload(client, pdf, dual="false").json()["id"])
+    b = upload(client, pdf, dual="false")
+    assert b.status_code == 202
+    b = b.json()
+    assert b["status"] == "done" and b["id"] != a["id"] and b["files"] == a["files"] and b["shared"] is True
+    assert client.get(f"/jobs/{b['id']}/files/mono").content == client.get(f"/jobs/{a['id']}/files/mono").content
+    assert runs(counter) == 1
+    # khác trang hoặc khác tuỳ chọn thì phải dịch riêng
+    wait_done(client, upload(client, pdf, dual="false", pages="1").json()["id"])
+    assert runs(counter) == 2
+
+
+def test_same_file_while_translating_finishes_together(client, monkeypatch, tmp_path):
+    counter = tmp_path / "runs.txt"
+    monkeypatch.setenv("FAKE_RUNS", str(counter))
+    monkeypatch.setenv("FAKE_SLEEP", "0.5")
+    pdf = make_pdf()
+    a = upload(client, pdf).json()
+    b = upload(client, pdf).json()
+    assert b["status"] == "queued" and b["twin"] is True and b["ahead"] == 1
+    st_a = wait_done(client, a["id"])
+    st_b = client.get(f"/jobs/{b['id']}").json()  # xong ngay khi a xong, không phải xếp hàng dịch lại
+    assert st_a["status"] == "done" and st_b["status"] == "done" and st_b["files"] == st_a["files"]
+    assert runs(counter) == 1
+
+
+def test_waiting_shows_estimated_seconds(client, monkeypatch):
+    monkeypatch.setenv("FAKE_SLEEP", "1.0")
+    a = upload(client).json()
+    b = upload(client, data=make_pdf(pages=20, text="A different paper about attention.")).json()
+    assert b["status"] == "queued" and b["twin"] is False
+    # chờ file 3 trang đang dịch: ước tính theo số đo VPS (khoảng 45 s + 9 s/trang)
+    assert 30 <= b["wait_s"] <= 120, b["wait_s"]
+    assert b["eta_s"] > b["wait_s"]  # tới lượt rồi còn phải dịch 20 trang
+    wait_done(client, a["id"])
+    wait_done(client, b["id"])
+
+
+def test_files_kept_for_hours_after_finishing_not_after_upload(client):
+    st = wait_done(client, upload(client).json()["id"])
+    job = srv.JOBS[st["id"]]
+    job.created -= 10 * 3600  # gửi từ 10 giờ trước (chờ lâu) nhưng vừa dịch xong
+    assert srv.cleanup_once() == 0 and st["id"] in srv.JOBS
+    assert client.get(f"/jobs/{st['id']}").json()["expires_at"] >= time.time() + srv.S.keep_hours * 3600 - 60
 
 
 def test_error_from_translator_is_friendly(client, monkeypatch):

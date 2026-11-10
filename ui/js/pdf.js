@@ -151,17 +151,42 @@ function queueAhead(st) {
   return typeof st.ahead === 'number' ? st.ahead : Math.max(0, (st.position || 1) - 1);
 }
 
+// Giây -> "khoảng 12 phút", "khoảng 1 giờ 10 phút". Máy chủ cũ không gửi số thì trả chuỗi rỗng.
+function fmtWait(sec) {
+  if (typeof sec !== 'number' || sec <= 0) return '';
+  if (sec < 60) return 'dưới 1 phút';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `khoảng ${min} phút`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `khoảng ${h} giờ ${m} phút` : `khoảng ${h} giờ`;
+}
+
+// Câu báo khi đang chờ. twin: cùng file với một lượt đang dịch, xong cùng lúc với lượt đó.
+function queueText(st, long) {
+  const ahead = queueAhead(st);
+  if (st.twin) {
+    const t = fmtWait(st.eta_s);
+    return `Paper này đang được dịch cho người khác, bạn nhận bản dịch cùng lúc${t ? `, ${t} nữa` : ''}`;
+  }
+  if (!ahead) return long ? 'Sắp tới lượt của bạn' : 'Sắp tới lượt...';
+  const t = fmtWait(st.wait_s);
+  return long
+    ? `Hiện có người đang dịch, vui lòng chờ. Trước bạn còn ${ahead} lượt${t ? `, ${t} nữa tới lượt bạn` : ', máy rảnh là tới bạn'}`
+    : `Có người đang dịch, trước bạn còn ${ahead} lượt${t ? ` · ${t} nữa tới lượt` : ''}`;
+}
+
 function renderJob(el, st) {
   const acts = $('.job-actions', el);
   const w = pdfState.waits.get(st.id);
   if (w) waitFromJob(w, st);
   if (st.status === 'queued') {
-    const ahead = queueAhead(st);
-    setJobStatus(el, ahead ? `Có người đang dịch, trước bạn còn ${ahead} lượt` : 'Sắp tới lượt...', { indet: true });
+    setJobStatus(el, queueText(st, false), { indet: true });
   } else if (st.status === 'running') {
     setJobStatus(el, `Đang dịch ${st.pages} trang · ${st.stage || 'Chuẩn bị'} · ${Math.round(st.percent)}%`, { percent: Math.max(10, st.percent) });
   } else if (st.status === 'done') {
-    setJobStatus(el, `Xong sau ${Math.round(st.seconds || 0)} giây · ${st.pages} trang · tự xoá lúc ${new Date(st.expires_at * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`, { percent: 100 });
+    const until = new Date(st.expires_at * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const head = st.shared ? 'Có sẵn bản dịch của đúng file này' : `Xong sau ${Math.round(st.seconds || 0)} giây`;
+    setJobStatus(el, `${head} · ${st.pages} trang · tự xoá lúc ${until}`, { percent: 100 });
     if (acts.hidden) {
       acts.hidden = false;
       const add = (label, kind, cls, download = false) => {
@@ -299,8 +324,7 @@ function waitClose(w) {
 // Trạng thái từ máy chủ -> màn hình chờ. Phần trăm: tải lên chiếm 10% đầu, phần dịch 90% còn lại.
 function waitFromJob(w, st) {
   if (st.status === 'queued') {
-    const ahead = queueAhead(st);
-    waitSet(w, { percent: 10, step: 'file', detail: ahead ? `Hiện có người đang dịch, vui lòng chờ. Trước bạn còn ${ahead} lượt, máy rảnh là tới bạn` : 'Sắp tới lượt của bạn' });
+    waitSet(w, { percent: 10, step: 'file', detail: queueText(st, true) });
   } else if (st.status === 'running') {
     const step = st.step === 'translate' || st.step === 'finish' ? st.step : 'file';
     waitSet(w, { percent: 10 + st.percent * 0.9, step, detail: `${st.stage || 'Chuẩn bị'} · ${st.pages} trang` });

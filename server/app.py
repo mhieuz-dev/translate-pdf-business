@@ -13,13 +13,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
+import statistics
 import os
 import re
 import secrets
 import shutil
 import sys
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -164,6 +167,9 @@ class Job:
     files: dict[str, str] = field(default_factory=dict)  # mono/dual -> tên file trong thư mục lượt dịch
     started: float | None = None
     finished: float | None = None
+    key: str = ""  # mã băm file + trang + tuỳ chọn: cùng khoá thì dùng chung bản dịch
+    twin: str | None = None  # đang chờ một lượt giống hệt (cùng khoá) dịch xong để dùng chung
+    shared: bool = False  # nhận bản dịch của lượt giống hệt, không tự dịch
 
     @property
     def dir(self) -> Path:
@@ -176,6 +182,10 @@ class Job:
             "status": self.status,
             "position": position,
             "ahead": ahead_of(self),  # số lượt phía trước, TÍNH CẢ file đang dịch
+            "twin": self.twin is not None,
+            "shared": self.shared,
+            "wait_s": round(wait_start(self)) if self.status == "queued" else 0,  # còn bao lâu tới lượt
+            "eta_s": round(eta_done(self)) if self.status in ("queued", "running") else 0,  # còn bao lâu xong
             "percent": round(self.percent, 1),
             "stage": self.stage,
             "step": self.status if self.status in ("queued", "done", "error") else stage_step(self.stage),
@@ -184,7 +194,7 @@ class Job:
             "page_numbers": self.pages,  # số trang thật trong file gốc, để trình đọc ghi "Trang 7"
             "files": sorted(self.files),
             "seconds": round((self.finished or time.time()) - (self.started or time.time()), 1) if self.started else None,
-            "expires_at": self.created + S.keep_hours * 3600,
+            "expires_at": (self.finished or self.created) + S.keep_hours * 3600,
         }
 
 
@@ -201,14 +211,92 @@ def queue_position(job: Job) -> int | None:
     return 1 + next(i for i, j in enumerate(waiting) if j.id == job.id)
 
 
+def _source(job: Job) -> Job | None:
+    src = JOBS.get(job.twin) if job.twin else None
+    return src if src and src.status in ("queued", "running") else None
+
+
+def _ahead_jobs(job: Job) -> list[Job]:
+    """Lượt phải dịch xong trước lượt này. Lượt "sinh đôi" (chờ dùng chung) không tốn thời gian máy."""
+    return [j for j in JOBS.values() if j.status == "running"
+            or (j.status == "queued" and j.twin is None and j.created < job.created)]
+
+
 def ahead_of(job: Job) -> int:
     """Máy chỉ dịch một file một lúc, ai gửi trước dịch trước: đếm file đang dịch + file chờ gửi trước."""
-    if job.status == "running":
-        return 0
     if job.status != "queued":
         return 0
-    return sum(1 for j in JOBS.values()
-               if j.status == "running" or (j.status == "queued" and j.created < job.created))
+    src = _source(job)
+    if src:
+        return ahead_of(src) + 1  # xong cùng lúc với lượt giống hệt đang dịch
+    return len(_ahead_jobs(job))
+
+
+# Ước tính thời gian dịch: số đo thật trên VPS 10/11/2026 (2 trang 60 s, 3 trang 73 s, 15 trang 175 s)
+# ~ 45 s chuẩn bị + 9 s mỗi trang, rồi tự chỉnh theo tỉ lệ thật/ước tính của các lượt gần nhất.
+EST_FIXED_S, EST_PAGE_S = 45.0, 9.0
+RECENT: deque[tuple[int, float]] = deque(maxlen=20)  # (số trang, số giây) của các lượt dịch thật
+
+
+def est_seconds(pages: int) -> float:
+    base = EST_FIXED_S + EST_PAGE_S * pages
+    if RECENT:
+        ratio = statistics.median(sec / (EST_FIXED_S + EST_PAGE_S * p) for p, sec in RECENT)
+        base *= min(3.0, max(0.5, ratio))
+    return base
+
+
+def _remaining(job: Job) -> float:
+    est = est_seconds(len(job.pages))
+    if job.status == "running":
+        return max(5.0, est - (time.time() - (job.started or time.time())))
+    return est
+
+
+def wait_start(job: Job) -> float:
+    """Còn bao lâu tới lượt (lượt sinh đôi: còn bao lâu lượt giống hệt dịch xong)."""
+    if job.status != "queued":
+        return 0.0
+    src = _source(job)
+    if src:
+        return eta_done(src)
+    return sum(_remaining(j) for j in _ahead_jobs(job))
+
+
+def eta_done(job: Job) -> float:
+    if job.status == "running":
+        return _remaining(job)
+    if job.status != "queued":
+        return 0.0
+    if _source(job):
+        return wait_start(job)
+    return wait_start(job) + _remaining(job)
+
+
+def link_files(src: Job, dst: Job) -> None:
+    """Dùng chung bản dịch: liên kết cứng (không tốn thêm chỗ đĩa), mỗi lượt vẫn tự hết hạn riêng."""
+    for kind, name in src.files.items():
+        target = dst.dir / name
+        target.unlink(missing_ok=True)
+        try:
+            os.link(src.dir / name, target)
+        except OSError:
+            shutil.copy2(src.dir / name, target)
+        dst.files[kind] = name
+    now = time.time()
+    dst.status, dst.percent, dst.stage = "done", 100.0, "Xong"
+    dst.started = dst.finished = now
+    dst.twin, dst.shared = None, True
+
+
+def finish_twins(src: Job) -> None:
+    """Lượt dịch xong: các lượt giống hệt đang chờ nhận luôn bản dịch; lỗi thì chúng tự dịch khi tới lượt."""
+    for j in JOBS.values():
+        if j.twin == src.id and j.status == "queued":
+            if src.status == "done":
+                link_files(src, j)
+            else:
+                j.twin = None
 
 
 async def run_job(job: Job) -> None:
@@ -279,6 +367,7 @@ async def run_job(job: Job) -> None:
         if (job.dir / "original.pdf").is_file():
             job.files["original"] = "original.pdf"  # bản gốc đúng các trang đã dịch, để đọc song song
         job.status, job.percent, job.stage = "done", 100.0, "Xong"
+        RECENT.append((len(job.pages), job.finished - (job.started or job.finished)))
     else:
         job.status = "error"
         job.error = job.error or friendly_error("\n".join(tail))
@@ -295,6 +384,7 @@ async def worker() -> None:
             except Exception as e:  # không để một file hỏng làm chết hàng đợi
                 job.status, job.error, job.finished = "error", friendly_error(str(e)), time.time()
                 print(f"[job {job.id}] ngoại lệ: {e!r}", file=sys.stderr, flush=True)
+            finish_twins(job)
         QUEUE.task_done()
 
 
@@ -303,7 +393,8 @@ def cleanup_once(now: float | None = None) -> int:
     cutoff = (now or time.time()) - S.keep_hours * 3600
     removed = 0
     for jid, job in list(JOBS.items()):
-        if job.created < cutoff and job.status in ("done", "error"):
+        # tính từ lúc dịch xong: người chờ lâu trong hàng vẫn có đủ thời gian tải bản dịch
+        if (job.finished or job.created) < cutoff and job.status in ("done", "error"):
             shutil.rmtree(job.dir, ignore_errors=True)
             JOBS.pop(jid, None)
             removed += 1
@@ -370,12 +461,6 @@ async def create_job(
     if lang not in ("vi", "en"):
         raise HTTPException(400, "Ngôn ngữ chỉ có vi hoặc en")
     ip = client_ip(request)
-    active = [j for j in JOBS.values() if j.status in ("queued", "running")]
-    if len(active) >= S.max_queue:
-        raise HTTPException(503, "Máy chủ đang bận nhiều lượt dịch, bạn thử lại sau ít phút nhé.")
-    if sum(1 for j in active if j.ip == ip) >= S.max_per_ip:
-        raise HTTPException(429, f"Mỗi người dịch tối đa {S.max_per_ip} file cùng lúc. Đợi file trước xong nhé.")
-
     data = await file.read(S.max_mb * 1024 * 1024 + 1)
     if len(data) > S.max_mb * 1024 * 1024:
         raise HTTPException(413, f"File lớn hơn {S.max_mb} MB.")
@@ -398,8 +483,21 @@ async def create_job(
     if len(chosen) > S.max_pages:
         raise HTTPException(413, f"Bạn chọn {len(chosen)} trang, tối đa {S.max_pages} trang mỗi lần. Hãy nhập ô Trang cần dịch, ví dụ 1-{S.max_pages}.")
 
+    key = f"{hashlib.sha256(data).hexdigest()}:{lang}:{int(dual)}:{pages_arg(chosen)}"
+    same = sorted((j for j in JOBS.values() if j.key == key and j.status in ("done", "queued", "running")),
+                  key=lambda j: j.created)
+    done_same = next((j for j in reversed(same) if j.status == "done"), None)
+    busy_same = next((j for j in same if j.status in ("queued", "running") and j.twin is None), None)
+    active = [j for j in JOBS.values() if j.status in ("queued", "running")]
+    if not done_same:
+        # lượt dùng chung bản dịch có sẵn không tốn máy nên không bị chặn
+        if not busy_same and len(active) >= S.max_queue:
+            raise HTTPException(503, "Máy chủ đang bận nhiều lượt dịch, bạn thử lại sau ít phút nhé.")
+        if sum(1 for j in active if j.ip == ip) >= S.max_per_ip:
+            raise HTTPException(429, f"Mỗi người dịch tối đa {S.max_per_ip} file cùng lúc. Đợi file trước xong nhé.")
+
     job = Job(id=secrets.token_hex(16), ip=ip, name=Path(file.filename or "paper.pdf").name[:120],
-              lang=lang, dual=dual, pages=chosen, total_pages=total)
+              lang=lang, dual=dual, pages=chosen, total_pages=total, key=key)
     job.dir.mkdir(parents=True)
     (job.dir / "input.pdf").write_bytes(data)
     # Bản gốc chỉ gồm các trang được chọn, để web đặt cạnh bản dịch theo đúng từng trang.
@@ -409,6 +507,11 @@ async def create_job(
     src.save(job.dir / "original.pdf", garbage=3, deflate=True)
     src.close()
     JOBS[job.id] = job
+    if done_same:
+        link_files(done_same, job)  # đã có người dịch đúng file này: trả ngay
+        return job.public(None)
+    if busy_same:
+        job.twin = busy_same.id  # đang dịch đúng file này: xong cùng lúc, không dịch lại
     await QUEUE.put(job.id)
     return job.public(queue_position(job))
 

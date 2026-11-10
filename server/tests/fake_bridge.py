@@ -8,6 +8,9 @@ out = args[args.index("--output") + 1]
 inp = args[0]
 with open(os.path.join(os.path.dirname(inp), "args.json"), "w") as f:
     json.dump(args, f)
+if os.environ.get("FAKE_RUNS"):  # đếm số lần dịch thật sự chạy
+    with open(os.environ["FAKE_RUNS"], "a") as f:
+        f.write("1\n")
 mode = os.environ.get("FAKE_MODE", "")
 for pct in (10, 5, 60):  # có lần tụt để kiểm tra tiến độ chỉ tăng
     print(json.dumps({"type": "progress", "percent": pct, "stage": "Parse Page Layout"}), flush=True)
