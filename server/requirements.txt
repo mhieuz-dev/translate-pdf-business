@@ -1,4 +1,9 @@
-pdf2zh-next==2.10.2
+# pdf2zh-next 2.9.0 + BabelDOC 0.6.2 (thuần Python): từ BabelDOC 0.7 lõi Rust chỉ nhận font có sẵn
+# hồ sơ, không thêm được TeX Gyre Termes / Latin Modern để chữ dịch giống bản gốc.
+# bitstring 5 đổi API (mất BitStream) làm BabelDOC 0.6 lỗi import; 0.6.2 lại cần >=4.3 nên ghim 4.3.1.
+pdf2zh-next==2.9.0
+babeldoc==0.6.2
+bitstring==4.3.1
 fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9

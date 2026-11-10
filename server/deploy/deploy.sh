@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 
 echo "== Chép code lên $TARGET:/opt/thongngu-pdf"
 ssh "$TARGET" 'mkdir -p /opt/thongngu-pdf /var/lib/thongngu-pdf'
-tar czf - app.py pdf_bridge.py requirements.txt | ssh "$TARGET" 'tar xzf - -C /opt/thongngu-pdf'
+tar czf - app.py pdf_bridge.py requirements.txt fonts/*.ttf fonts/GUST-FONT-LICENSE.txt | ssh "$TARGET" 'tar xzf - -C /opt/thongngu-pdf'
 sed -e "s/__MEM_HIGH__/$MEM_HIGH/" -e "s/__MEM_MAX__/$MEM_MAX/" -e "s/__SWAP_MAX__/$SWAP_MAX/" deploy/thongngu-pdf.service \
   | ssh "$TARGET" 'cat > /etc/systemd/system/thongngu-pdf.service'
 
