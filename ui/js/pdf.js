@@ -1,7 +1,7 @@
 // Trang Dịch PDF: tải file lên máy chủ (server/), theo dõi tiến độ, mở hoặc tải bản dịch.
 // Danh sách lượt dịch được nhớ trong trình duyệt để tải lại trang vẫn thấy, cho tới khi hết hạn.
 const PDF_JOBS_KEY = 'thongngu.pdfjobs.v1';
-const pdfState = { health: null, polling: new Set() };
+const pdfState = { health: null, polling: new Set(), autoOpen: new Set() };
 
 function pdfUrl(path) {
   return `${PDF_API}${path}`;
@@ -126,6 +126,7 @@ function startUpload(file) {
     $('.job-close', el).replaceWith($('.job-close', el).cloneNode(true));
     $('.job-close', el).addEventListener('click', () => { forgetJob(body.id); el.remove(); });
     rememberJob(body);
+    pdfState.autoOpen.add(body.id); // dịch xong thì tự mở trình đọc song song
     renderJob(el, body);
     pollJob(body.id);
   });
@@ -155,8 +156,14 @@ function renderJob(el, st) {
         a.innerHTML = (download ? icon('download') : icon('external')) + label;
         acts.appendChild(a);
       };
-      if (st.files.includes('mono')) add('Xem bản dịch', 'mono', 'btn-primary');
-      if (st.files.includes('dual')) add('Xem song ngữ', 'dual', 'btn-outline');
+      if (pdfState.autoOpen.delete(st.id) && state.page === 'pdf' && st.files.includes('original')) openReader(st);
+      if (st.files.includes('original')) {
+        const read = document.createElement('button');
+        read.className = 'btn btn-primary btn-sm';
+        read.innerHTML = `${icon('book2')}Đọc song song`;
+        read.addEventListener('click', () => openReader(st));
+        acts.appendChild(read);
+      }
       if (st.files.includes('mono')) add('Tải bản dịch', 'mono', 'btn-ghost', true);
       if (st.files.includes('dual')) add('Tải song ngữ', 'dual', 'btn-ghost', true);
     }

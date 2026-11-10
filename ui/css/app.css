@@ -427,3 +427,127 @@ button:focus-visible, .cand:focus-visible, .chip:focus-visible, a:focus-visible 
 label.dropzone { display: block; }
 /* Nút dạng link (Xem/Tải bản dịch) không gạch chân */
 a.btn { text-decoration: none; }
+
+/* =====================================================================
+   Trình đọc song song: bản gốc | bản dịch, bấm từ để xem nghĩa
+   ===================================================================== */
+.reader {
+  position: fixed; inset: 0; z-index: 50; background: #e9eeef;
+  display: grid; grid-template-rows: auto 1fr;
+  animation: fade .15s;
+}
+.reader-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(16, 40, 44, .02);
+}
+.reader-title { min-width: 0; flex: 1; display: flex; align-items: center; gap: 12px; }
+.reader-title .brand-mark { width: 34px; height: 34px; font-size: 17px; border-radius: 10px; }
+.reader-title .brand-mark::after { width: 8px; height: 8px; right: -2px; top: -2px; }
+.reader-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reader-sub { font-size: 12px; color: var(--muted); }
+.seg { display: inline-flex; background: var(--line-2); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button {
+  border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--ink-2);
+}
+.seg button.on { background: #fff; color: var(--teal); box-shadow: 0 1px 2px rgba(16,40,44,.12); }
+.zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--line-2); border-radius: 10px; padding: 3px; }
+.zoom .icon-btn { width: 30px; height: 30px; }
+.zoom span { min-width: 48px; text-align: center; font-size: 12.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.reader-page-no { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reader-tabs { display: none; }
+
+.reader-scroll { overflow: auto; position: relative; }
+.reader-cols-head {
+  position: sticky; top: 0; z-index: 5;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 10px 24px;
+  background: rgba(233, 238, 239, .92); backdrop-filter: blur(6px);
+}
+.reader-cols-head > div { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.reader-cols-head .badge { font-size: 11px; }
+.reader-rows { padding: 6px 24px 60px; display: flex; flex-direction: column; gap: 22px; }
+.reader-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; justify-items: center; }
+.reader-row .row-label {
+  grid-column: 1 / -1; justify-self: center; font-size: 11.5px; font-weight: 600; color: var(--muted);
+  letter-spacing: .04em; margin-bottom: -12px;
+}
+.pdf-page {
+  position: relative; background: #fff; border-radius: 4px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(16, 40, 44, .10), 0 8px 24px rgba(16, 40, 44, .08);
+}
+.pdf-page canvas { display: block; width: 100%; height: 100%; }
+.pdf-page .textLayer span { cursor: pointer; }
+.pdf-page .textLayer ::selection { background: rgba(0, 95, 105, .22); }
+.pdf-page.loading::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, #f3f6f6 0%, #fbfcfc 50%, #f3f6f6 100%); background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+.word-mark {
+  position: absolute; z-index: 2; pointer-events: none; border-radius: 3px;
+  background: rgba(0, 95, 105, .18); box-shadow: 0 0 0 1.5px rgba(0, 95, 105, .55);
+  animation: fade .12s;
+}
+.reader-loading { display: grid; place-items: center; padding: 80px 20px; color: var(--ink-2); text-align: center; }
+.reader-loading .progress { width: 260px; margin: 14px auto 0; }
+.reader-hint {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 55;
+  display: flex; align-items: center; gap: 12px; background: var(--ink); color: #fff;
+  padding: 10px 10px 10px 18px; border-radius: 14px; font-size: 13.5px; box-shadow: var(--shadow-lg);
+  animation: pop .18s ease-out; max-width: calc(100vw - 32px);
+}
+.reader-hint .icon-btn { color: #cfd8da; width: 30px; height: 30px; }
+.reader-hint .icon-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+/* Thẻ nghĩa hiện cạnh từ vừa bấm */
+.word-pop {
+  position: fixed; z-index: 60; width: 340px; max-width: calc(100vw - 24px);
+  background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg);
+  animation: pop .14s ease-out; overflow: hidden;
+}
+.word-pop-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line-2); }
+.word-pop-term { font-size: 18px; font-weight: 600; line-height: 1.3; word-break: break-word; }
+.word-pop-meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.word-pop-body { padding: 12px 16px; max-height: 320px; overflow: auto; }
+.word-pop .cands { gap: 6px; }
+.word-pop .cand { padding: 8px 10px 8px 12px; border-radius: 11px; cursor: pointer; }
+.word-pop .cand .term-text { font-size: 14.5px; }
+.word-pop .cand .src { font-size: 11px; }
+.word-pop .saved-banner { margin: 0 0 10px; padding: 10px 12px; }
+.word-pop-def { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
+.word-pop-def b { color: var(--teal); font-weight: 600; font-style: italic; }
+.word-pop-foot { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line-2); background: #fafbfb; }
+.word-pop-foot .input { padding: 7px 10px; font-size: 13px; flex: 1; min-width: 0; }
+
+@media (max-width: 860px) {
+  .reader-bar { padding: 8px 12px; gap: 8px; }
+  .reader-tabs { display: inline-flex; }
+  .reader-cols-head { display: none; }
+  .reader-rows { padding: 12px 10px 60px; gap: 16px; }
+  .reader-row { grid-template-columns: 1fr; }
+  .reader[data-show="original"] .pdf-page.tr, .reader[data-show="translated"] .pdf-page.orig { display: none; }
+  .reader .zoom, .reader-sub { display: none; }
+  .word-pop { left: 8px !important; right: 8px; bottom: 8px; top: auto !important; width: auto; max-width: none; border-radius: 18px; }
+}
+/* Luôn chừa chỗ cho thanh cuộn dọc để tính độ rộng trang không bị tràn ngang khi thanh cuộn xuất hiện */
+.reader-scroll { scrollbar-gutter: stable; overflow-x: hidden; }
+.reader-scroll.zoomed { overflow-x: auto; }
+
+/* Trình đọc theo tông UEH: nền teal rất nhạt, nhãn và nút điểm teal */
+.reader { background: #e6efef; }
+.reader-cols-head { background: rgba(230, 239, 239, .94); border-bottom: 1px solid rgba(0, 95, 105, .08); }
+.reader-cols-head > div { color: var(--teal); font-weight: 600; }
+.reader-row .row-label { color: var(--teal); opacity: .75; }
+.reader-bar .btn-outline { color: var(--teal); border-color: var(--teal-100); background: #fff; }
+.reader-bar .btn-outline:hover { border-color: var(--teal); background: var(--teal-50); }
+.reader-bar .zoom, .reader-bar .seg { background: var(--teal-50); }
+.reader-bar .zoom span { color: var(--teal); }
+.reader-bar .zoom .icon-btn { color: var(--teal); }
+.reader-bar .zoom .icon-btn:hover { background: #fff; }
+.reader-page-no { color: var(--teal); font-weight: 600; background: var(--teal-50); padding: 6px 12px; border-radius: 999px; }
+.reader-sub { color: var(--ink-2); }
+.pdf-page { box-shadow: 0 1px 3px rgba(0, 60, 66, .10), 0 10px 28px rgba(0, 60, 66, .10); }
+.word-pop { border-color: var(--teal-100); box-shadow: 0 14px 44px rgba(0, 60, 66, .20); }
+.word-pop-head { background: linear-gradient(180deg, var(--teal-50), #fff); }
+.word-pop-term { color: var(--teal); }
