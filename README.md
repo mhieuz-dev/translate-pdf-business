@@ -89,7 +89,7 @@ ui/js/web-backend.js   Lõi cho bản web, chuyển thể từ core/ sang JavaSc
 Kiểm thử:
 
 ```bash
-cargo test --workspace                                        # 63 test Rust
+cargo test --workspace                                        # 64 test Rust
 cargo test -p thongngu-core --test live -- --ignored          # gọi mạng thật
 node --test web-tests/web-backend.test.js                     # 17 test bản web, cùng dữ liệu mẫu với Rust
 ```
