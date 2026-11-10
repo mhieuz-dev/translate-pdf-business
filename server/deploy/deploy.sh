@@ -8,12 +8,13 @@ set -euo pipefail
 TARGET="${1:?Cách dùng: deploy.sh root@<ip-vps>}"
 MEM_HIGH="${MEM_HIGH:-1200M}"
 MEM_MAX="${MEM_MAX:-1500M}"
+SWAP_MAX="${SWAP_MAX:-1500M}"
 cd "$(dirname "$0")/.."
 
 echo "== Chép code lên $TARGET:/opt/thongngu-pdf"
 ssh "$TARGET" 'mkdir -p /opt/thongngu-pdf /var/lib/thongngu-pdf'
 tar czf - app.py pdf_bridge.py requirements.txt | ssh "$TARGET" 'tar xzf - -C /opt/thongngu-pdf'
-sed -e "s/__MEM_HIGH__/$MEM_HIGH/" -e "s/__MEM_MAX__/$MEM_MAX/" deploy/thongngu-pdf.service \
+sed -e "s/__MEM_HIGH__/$MEM_HIGH/" -e "s/__MEM_MAX__/$MEM_MAX/" -e "s/__SWAP_MAX__/$SWAP_MAX/" deploy/thongngu-pdf.service \
   | ssh "$TARGET" 'cat > /etc/systemd/system/thongngu-pdf.service'
 
 echo "== Cài môi trường (lần đầu mất vài phút)"
@@ -25,7 +26,7 @@ UV=$(command -v uv || echo /root/.local/bin/uv)
 cd /opt/thongngu-pdf
 [ -d .venv ] || "$UV" venv --python 3.12 .venv
 "$UV" pip install --python .venv/bin/python -q -r requirements.txt
-mkdir -p .cache
+mkdir -p .cache .config  # pdf2zh ghi ~/.config/pdf2zh, BabelDOC ghi ~/.cache/babeldoc
 chown -R thongngu:thongngu /opt/thongngu-pdf /var/lib/thongngu-pdf
 # Nạp sẵn mô hình nhận dạng bố cục (~340 MB) để người dùng đầu tiên không phải chờ tải.
 sudo -u thongngu env HOME=/opt/thongngu-pdf XDG_CACHE_HOME=/opt/thongngu-pdf/.cache \

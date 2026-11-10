@@ -1,5 +1,6 @@
 # Máy chủ dịch PDF của Thông Ngữ. Chạy ké VPS nên bị giới hạn cứng để không ảnh hưởng dịch vụ khác:
-# tối đa 1 nhân CPU, RAM theo MemoryMax, độ ưu tiên thấp (Nice/IOWeight).
+# tối đa 1 nhân CPU, độ ưu tiên thấp (Nice/IOWeight). Mỗi lượt dịch cần ~1,35 GB RAM mà VPS chỉ còn
+# ~1 GB: vượt MemoryHigh thì CHÍNH dịch vụ này bị đẩy ra swap trước (dịch chậm đi), các dịch vụ khác giữ RAM.
 [Unit]
 Description=Thong Ngu - may chu dich PDF
 After=network-online.target
@@ -19,6 +20,7 @@ RestartSec=5
 CPUQuota=100%
 MemoryHigh=__MEM_HIGH__
 MemoryMax=__MEM_MAX__
+MemorySwapMax=__SWAP_MAX__
 Nice=10
 IOWeight=50
 TasksMax=200
@@ -27,7 +29,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/thongngu-pdf /opt/thongngu-pdf/.cache
+ReadWritePaths=/var/lib/thongngu-pdf /opt/thongngu-pdf/.cache /opt/thongngu-pdf/.config
 Environment=HOME=/opt/thongngu-pdf
 Environment=XDG_CACHE_HOME=/opt/thongngu-pdf/.cache
 
