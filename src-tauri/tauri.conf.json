@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Thông Ngữ",
+  "productName": "Thong Ngu",
   "mainBinaryName": "thong-ngu",
   "version": "0.1.0",
   "identifier": "io.github.mhieuzdev.thongngu",
@@ -41,7 +41,14 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["wl-clipboard", "xclip"]
+        "depends": [
+          "wl-clipboard",
+          "xclip"
+        ],
+        "desktopTemplate": "linux/thong-ngu.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/thong-ngu.desktop"
       }
     }
   }
