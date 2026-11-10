@@ -4,7 +4,7 @@
 // Dịch PDF gọi máy chủ riêng (PDF_API), xem server/.
 const USE_MOCK = new URLSearchParams(location.search).has('mock');
 const GITHUB_URL = 'https://github.com/mhieuz-dev/thong-ngu';
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 // Địa chỉ máy chủ dịch PDF. Thử máy chủ khác: thêm ?pdfapi=http://127.0.0.1:8787 vào link.
 const PDF_API = (new URLSearchParams(location.search).get('pdfapi') || window.THONGNGU_PDF_API || '').replace(/\/$/, '');
 

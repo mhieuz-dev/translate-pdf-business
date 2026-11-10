@@ -44,7 +44,7 @@ async function openReader(job) {
         <div class="brand-mark">Ă</div>
         <div style="min-width:0">
           <div class="reader-name">${esc(job.name)}</div>
-          <div class="reader-sub">Bấm vào một từ để xem nghĩa · kéo chọn để tra cả cụm</div>
+          <div class="reader-sub">Bấm một từ để xem nghĩa · kéo chọn đoạn rồi bấm Dịch</div>
         </div>
       </div>
       <div class="seg reader-tabs"><button class="on" data-show="original">Bản gốc</button><button data-show="translated">Bản dịch</button></div>
@@ -73,7 +73,8 @@ async function openReader(job) {
     rdClosePop();
   }));
   $$('[data-z]', el).forEach((b) => b.addEventListener('click', () => rdZoom(b.dataset.z)));
-  RD.scroller.addEventListener('scroll', () => { if (RD.pop) rdClosePop(); }, { passive: true });
+  RD.scroller.addEventListener('scroll', () => { if (RD.pop || RD.pill) rdClosePop(); }, { passive: true });
+  RD.scroller.addEventListener('pointerdown', (e) => { if (!e.target.closest('.sel-pill')) rdHidePill(); });
   RD.scroller.addEventListener('pointerup', rdOnPointerUp);
   try {
     const [lib, a, b] = await Promise.all([rdLib(), rdFetch('original'), rdFetch('mono')]);
@@ -258,20 +259,69 @@ function rdContext(span) {
 
 function rdOnPointerUp(e) {
   if (e.button && e.button !== 0) return;
-  if (e.target.closest('.word-pop')) return;
+  if (e.target.closest('.word-pop, .sel-pill')) return;
   setTimeout(() => {
     const sel = window.getSelection();
     const picked = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, ' ').trim() : '';
     if (picked && sel.anchorNode && sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest('.textLayer')) {
-      const range = sel.getRangeAt(0);
-      const span = sel.anchorNode.parentElement;
-      rdShow(picked.slice(0, 400), range, span);
+      rdClosePop();
+      rdPill(picked.slice(0, 1500), sel.getRangeAt(0).cloneRange(), sel.anchorNode.parentElement);
       return;
     }
     const hit = rdWordAt(e.clientX, e.clientY);
     if (hit) rdShow(hit.text, hit.range, hit.span);
     else rdClosePop();
   }, 10);
+}
+
+// Nút nổi cạnh đoạn vừa chọn: [Ă Dịch] | sao chép | nghe
+function rdPill(text, range, span) {
+  rdHidePill();
+  const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+  const last = rects[rects.length - 1] || range.getBoundingClientRect();
+  const pill = document.createElement('div');
+  pill.className = 'sel-pill';
+  pill.innerHTML = `
+    <button data-act="tr"><span class="mini-mark">Ă</span>Dịch</button>
+    <span class="sep"></span>
+    <button data-act="copy" title="Sao chép">${icon('copy')}</button>
+    <button data-act="speak" title="Nghe">${icon('speaker')}</button>`;
+  document.body.appendChild(pill);
+  RD.pill = pill;
+  const w = pill.offsetWidth;
+  let left = Math.min(Math.max(8, last.right - w / 2), window.innerWidth - w - 8);
+  let top = last.bottom + 8;
+  if (top + 40 > window.innerHeight) top = Math.max(8, rects[0] ? rects[0].top - 46 : last.top - 46);
+  Object.assign(pill.style, { left: `${left}px`, top: `${top}px` });
+  pill.addEventListener('pointerdown', (ev) => ev.preventDefault()); // giữ nguyên vùng chọn khi bấm nút
+  $('[data-act="tr"]', pill).addEventListener('click', () => { rdHidePill(); rdShow(text, range, span); });
+  $('[data-act="copy"]', pill).addEventListener('click', () => { rdCopy(text); rdHidePill(); });
+  $('[data-act="speak"]', pill).addEventListener('click', () => rdSpeak(text));
+}
+
+function rdHidePill() {
+  if (RD.pill) { RD.pill.remove(); RD.pill = null; }
+}
+
+function rdCopy(text) {
+  const done = () => toast('Đã sao chép');
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => toast('Không sao chép được', 'err'));
+  else {
+    const t = Object.assign(document.createElement('textarea'), { value: text });
+    document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); done(); } catch { toast('Không sao chép được', 'err'); }
+    t.remove();
+  }
+}
+
+// Đọc to bằng giọng có sẵn của trình duyệt (miễn phí, không gửi đi đâu).
+function rdSpeak(text) {
+  if (!('speechSynthesis' in window)) { toast('Trình duyệt không hỗ trợ đọc to', 'err'); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.slice(0, 600));
+  u.lang = guessDirection(text) === 'vi-en' ? 'vi-VN' : 'en-US';
+  u.rate = 0.95;
+  speechSynthesis.speak(u);
 }
 
 function rdMark(range, cell) {
@@ -289,6 +339,7 @@ function rdMark(range, cell) {
 
 // ---------------------------------------------------------------- thẻ nghĩa
 function rdClosePop() {
+  rdHidePill();
   if (RD.pop) { RD.pop.remove(); RD.pop = null; }
   if (RD.mark) { RD.mark.forEach((m) => m.remove()); RD.mark = null; }
 }
@@ -317,20 +368,30 @@ async function rdShow(query, range, span) {
   rdMark(range, cell);
   const anchor = range.getBoundingClientRect();
   const context = rdContext(span);
+  const passage = query.split(/\s+/).length > 6;
   const pop = document.createElement('div');
-  pop.className = 'word-pop';
+  pop.className = `word-pop${passage ? ' wide' : ''}`;
   pop.innerHTML = `
     <div class="word-pop-head">
       <div class="row" style="align-items:flex-start">
-        <div class="word-pop-term grow">${esc(query)}</div>
-        <button class="icon-btn" data-act="close" title="Đóng (Esc)">${icon('close')}</button>
+        ${passage ? `<div class="grow"><div class="src-text">${esc(query)}</div></div>` : `<div class="word-pop-term grow">${esc(query)}</div>`}
+        <div class="tools">
+          <button class="icon-btn" data-act="speak" title="Nghe">${icon('speaker')}</button>
+          <button class="icon-btn" data-act="close" title="Đóng (Esc)">${icon('close')}</button>
+        </div>
       </div>
       <div class="word-pop-meta"><span class="badge badge-teal">${DIR_LABEL[guessDirection(query)]}</span></div>
     </div>
-    <div class="word-pop-body"><div class="cands">${'<div class="skeleton" style="height:40px"></div>'.repeat(3)}</div></div>`;
+    <div class="word-pop-body">
+      <div class="tl-loading">
+        <div class="tl-loading-row">Đang dịch<span class="tl-dots"><i></i><i></i><i></i></span></div>
+        <div class="tl-lines"><span></span><span></span>${passage ? '<span></span>' : ''}</div>
+      </div>
+    </div>`;
   document.body.appendChild(pop);
   RD.pop = pop;
   $('[data-act="close"]', pop).addEventListener('click', rdClosePop);
+  $('[data-act="speak"]', pop).addEventListener('click', () => rdSpeak(query));
   pop.addEventListener('pointerup', (e) => e.stopPropagation());
   rdPlace(pop, anchor);
 
@@ -349,6 +410,7 @@ async function rdShow(query, range, span) {
 
 function rdFill(pop, res, context) {
   const sentence = res.mode === 'sentence';
+  if (sentence) { rdFillPassage(pop, res); return; }
   const hit = res.glossary[0];
   const meta = [`<span class="badge badge-teal">${DIR_LABEL[res.direction]}</span>`];
   if (res.phonetic) meta.push(`<span class="phonetic">${esc(res.phonetic)}</span>`);
@@ -398,11 +460,29 @@ function rdFill(pop, res, context) {
   });
 }
 
+function rdFillPassage(pop, res) {
+  const meta = [`<span class="badge badge-teal">${DIR_LABEL[res.direction]}</span>`];
+  $('.word-pop-meta', pop).innerHTML = meta.join('');
+  const best = res.candidates[0];
+  const body = $('.word-pop-body', pop);
+  body.innerHTML = best
+    ? `<div class="row" style="align-items:flex-start;gap:6px">
+        <div class="grow"><div class="tr-label" style="margin-top:0">Bản dịch</div><div class="tr-text">${esc(best.text)}</div></div>
+        <div class="tools"><button class="icon-btn" data-act="copy" title="Sao chép bản dịch">${icon('copy')}</button></div>
+      </div>
+      ${res.in_text.length ? `<div class="tr-label">Thuật ngữ của bạn trong đoạn</div>
+        <div class="chips">${res.in_text.map((t) => `<span class="badge badge-teal">${esc(t.en)} → ${esc(t.vi)}</span>`).join('')}</div>` : ''}
+      <div class="note-warn" style="margin-top:10px">Dịch máy, chỉ để đọc hiểu nhanh. Bấm vào từng thuật ngữ để xem cách dịch chuẩn.</div>`
+    : `<div class="muted small">Không dịch được đoạn này. ${errorNote(res.errors)}</div>`;
+  const copy = $('[data-act="copy"]', body);
+  if (copy) copy.addEventListener('click', () => rdCopy(best.text));
+}
+
 function rdHint() {
   if (rdRead(RD_HINT_KEY) || !RD.el) return;
   const h = document.createElement('div');
   h.className = 'reader-hint';
-  h.innerHTML = `<span>${rdIsNarrow() ? 'Chạm vào một từ để xem nghĩa. Đổi Bản gốc / Bản dịch ở phía trên.' : 'Bấm vào một từ để xem nghĩa tiếng Việt, kéo chọn để tra cả cụm như "gradient descent".'}</span>
+  h.innerHTML = `<span>${rdIsNarrow() ? 'Chạm vào một từ để xem nghĩa, giữ và kéo để chọn cả đoạn. Đổi Bản gốc / Bản dịch ở phía trên.' : 'Bấm vào một từ để xem nghĩa. Kéo chọn một đoạn rồi bấm "Dịch" để dịch cả đoạn.'}</span>
     <button class="icon-btn" title="Đã hiểu">${icon('close')}</button>`;
   RD.el.appendChild(h);
   const done = () => { h.remove(); rdStore(RD_HINT_KEY, '1'); };

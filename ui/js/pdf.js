@@ -1,7 +1,7 @@
 // Trang Dịch PDF: tải file lên máy chủ (server/), theo dõi tiến độ, mở hoặc tải bản dịch.
 // Danh sách lượt dịch được nhớ trong trình duyệt để tải lại trang vẫn thấy, cho tới khi hết hạn.
 const PDF_JOBS_KEY = 'thongngu.pdfjobs.v1';
-const pdfState = { health: null, polling: new Set(), autoOpen: new Set() };
+const pdfState = { health: null, polling: new Set(), autoOpen: new Set(), waits: new Map() };
 
 function pdfUrl(path) {
   return `${PDF_API}${path}`;
@@ -98,6 +98,7 @@ function startUpload(file) {
   const tmpId = `up${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
   const el = jobCard(tmpId, file.name);
   setJobStatus(el, 'Đang tải lên... 0%', { percent: 0 });
+  const wait = waitOpen(file.name);
 
   const form = new FormData();
   form.append('file', file);
@@ -113,15 +114,20 @@ function startUpload(file) {
     if (e.lengthComputable) {
       const p = Math.round((e.loaded / e.total) * 100);
       setJobStatus(el, `Đang tải lên... ${p}%`, { percent: p * 0.1 });
+      waitSet(wait, { percent: p * 0.1, step: 'file', detail: `Đang tải lên ${p}%` });
     }
   });
   xhr.addEventListener('load', () => {
     let body = {};
     try { body = JSON.parse(xhr.responseText); } catch { /* bỏ qua */ }
     if (xhr.status !== 202) {
-      setJobStatus(el, body.detail || `Máy chủ báo lỗi ${xhr.status}`, { error: true });
+      const msg = body.detail || `Máy chủ báo lỗi ${xhr.status}`;
+      setJobStatus(el, msg, { error: true });
+      waitFromJob(wait, { status: 'error', error: msg });
       return;
     }
+    wait.jobId = body.id;
+    pdfState.waits.set(body.id, wait);
     el.id = `job-${body.id}`;
     $('.job-close', el).replaceWith($('.job-close', el).cloneNode(true));
     $('.job-close', el).addEventListener('click', () => { forgetJob(body.id); el.remove(); });
@@ -130,7 +136,10 @@ function startUpload(file) {
     renderJob(el, body);
     pollJob(body.id);
   });
-  const fail = () => setJobStatus(el, 'Không gửi được file. Kiểm tra mạng rồi thử lại.', { error: true });
+  const fail = () => {
+    setJobStatus(el, 'Không gửi được file. Kiểm tra mạng rồi thử lại.', { error: true });
+    waitFromJob(wait, { status: 'error', error: 'Không gửi được tập tin. Kiểm tra mạng rồi thử lại.' });
+  };
   xhr.addEventListener('error', fail);
   xhr.addEventListener('timeout', fail);
   xhr.send(form);
@@ -138,6 +147,8 @@ function startUpload(file) {
 
 function renderJob(el, st) {
   const acts = $('.job-actions', el);
+  const w = pdfState.waits.get(st.id);
+  if (w) waitFromJob(w, st);
   if (st.status === 'queued') {
     const ahead = Math.max(0, (st.position || 1) - 1);
     setJobStatus(el, ahead ? `Đang chờ, trước bạn còn ${ahead} file` : 'Sắp tới lượt...', { indet: true });
@@ -198,5 +209,102 @@ async function pollJob(id) {
     }
   } finally {
     pdfState.polling.delete(id);
+  }
+}
+
+// ---------------------------------------------------------------- màn hình chờ "Đang dịch..."
+// Theo mẫu user gửi: tiêu đề + "Vui lòng chờ trong giây lát", tiến độ tổng thể, 3 bước, ô "Mẹo hay".
+const WAIT_TIPS = [
+  ['Bấm từ nào cũng ra nghĩa', 'Trong màn hình đọc song song, bấm vào một từ ở bản gốc để xem nghĩa tiếng Việt, phiên âm và lưu thuật ngữ.'],
+  ['Dịch nhanh một đoạn', 'Kéo chuột chọn một đoạn rồi bấm nút "Dịch" hiện ra ngay cạnh vùng chọn.'],
+  ['Viết thống nhất thuật ngữ', 'Lưu cách dịch bạn chọn vào Bảng thuật ngữ, lần sau tra lại nó luôn hiện đầu tiên.'],
+  ['Chỉ cần vài trang?', 'Nhập ô "Trang cần dịch", ví dụ 1-5, để có bản dịch nhanh hơn.'],
+  ['Sao lưu bảng thuật ngữ', 'Bấm "Xuất CSV" ở mục Bảng thuật ngữ để mở bằng Excel hoặc chuyển sang máy khác.'],
+  ['Tra ngược khi viết bài', 'Gõ tiếng Việt có dấu vào ô Tra cứu để tìm thuật ngữ tiếng Anh tương ứng.'],
+];
+const WAIT_STEPS = [['file', 'Đang xử lý tập tin'], ['translate', 'Đang dịch văn bản'], ['finish', 'Đang hoàn thiện tài liệu']];
+
+function waitOpen(name) {
+  const back = document.createElement('div');
+  back.className = 'wait-back';
+  back.innerHTML = `
+    <div class="card wait-card" role="dialog" aria-live="polite">
+      <div class="wait-title">Đang dịch...</div>
+      <div class="wait-sub">Vui lòng chờ trong giây lát.</div>
+      <div class="wait-meta"><span class="wait-file">${icon('file')}<span>${esc(name)}</span></span><span class="wait-detail"></span></div>
+      <div class="wait-total-label">Tiến độ tổng thể</div>
+      <div class="wait-bar-row"><div class="progress"><div></div></div><b class="wait-pct">0%</b></div>
+      <div class="wait-steps">${WAIT_STEPS.map(([k, label]) => `
+        <div class="wait-step" data-step="${k}"><span class="wait-ico"></span><span>${label}</span></div>`).join('')}
+      </div>
+      <div class="wait-tip">
+        <span class="wait-tip-ico">${icon('bulb')}</span>
+        <div class="grow"><div class="wait-tip-title"></div><div class="wait-tip-text"></div></div>
+        <span class="badge badge-teal">Mẹo hay</span>
+      </div>
+      <div class="wait-foot"><span class="note" data-note>Bạn có thể đóng khung này, việc dịch vẫn chạy và tự mở khi xong.</span>
+        <button class="btn btn-outline btn-sm" data-act="bg">Chạy nền</button></div>
+    </div>`;
+  document.body.appendChild(back);
+  const w = { back, jobId: null, tip: Math.floor(Math.random() * WAIT_TIPS.length), timer: null };
+  const showTip = () => {
+    const [t, d] = WAIT_TIPS[w.tip % WAIT_TIPS.length];
+    $('.wait-tip-title', back).textContent = t;
+    const txt = $('.wait-tip-text', back);
+    txt.textContent = d;
+    txt.style.animation = 'none'; void txt.offsetWidth; txt.style.animation = '';
+    w.tip += 1;
+  };
+  showTip();
+  w.timer = setInterval(showTip, 6000);
+  $('[data-act="bg"]', back).addEventListener('click', () => waitClose(w));
+  waitSet(w, { percent: 0, step: 'file', detail: 'Đang tải tập tin lên...' });
+  return w;
+}
+
+function waitSet(w, { percent, step, sub, detail, title, done = false, error = false }) {
+  if (!w.back.isConnected) return;
+  const card = $('.wait-card', w.back);
+  if (title) $('.wait-title', card).textContent = title;
+  if (sub !== undefined) $('.wait-sub', card).textContent = sub;
+  if (detail !== undefined) $('.wait-detail', card).textContent = detail;
+  if (typeof percent === 'number') {
+    const p = Math.max(0, Math.min(100, Math.round(percent)));
+    $('.progress > div', card).style.width = `${p}%`;
+    $('.wait-pct', card).textContent = `${p}%`;
+  }
+  const order = WAIT_STEPS.map((s) => s[0]);
+  const at = done ? order.length : order.indexOf(step);
+  $$('.wait-step', card).forEach((el, i) => {
+    const state = error && i === at ? 'failed' : i < at ? 'done' : i === at ? 'active' : 'todo';
+    el.className = `wait-step ${state}`;
+    $('.wait-ico', el).innerHTML = state === 'done' ? icon('checkCircle') : state === 'failed' ? icon('alert') : '';
+  });
+  card.classList.toggle('done', done);
+  card.classList.toggle('failed', error);
+}
+
+function waitClose(w) {
+  clearInterval(w.timer);
+  if (w.back.isConnected) w.back.remove();
+  if (w.jobId) pdfState.waits.delete(w.jobId);
+}
+
+// Trạng thái từ máy chủ -> màn hình chờ. Phần trăm: tải lên chiếm 10% đầu, phần dịch 90% còn lại.
+function waitFromJob(w, st) {
+  if (st.status === 'queued') {
+    const ahead = Math.max(0, (st.position || 1) - 1);
+    waitSet(w, { percent: 10, step: 'file', detail: ahead ? `Đang xếp hàng, trước bạn còn ${ahead} tập tin` : 'Sắp tới lượt của bạn' });
+  } else if (st.status === 'running') {
+    const step = st.step === 'translate' || st.step === 'finish' ? st.step : 'file';
+    waitSet(w, { percent: 10 + st.percent * 0.9, step, detail: `${st.stage || 'Chuẩn bị'} · ${st.pages} trang` });
+  } else if (st.status === 'done') {
+    waitSet(w, { percent: 100, done: true, title: 'Đã dịch xong!', sub: 'Đang mở bản gốc và bản dịch song song...', detail: `${st.pages} trang · ${Math.round(st.seconds || 0)} giây` });
+    setTimeout(() => waitClose(w), 900);
+  } else if (st.status === 'error') {
+    waitSet(w, { step: 'translate', error: true, title: 'Dịch không thành công', sub: st.error || 'Có lỗi khi dịch tập tin.' });
+    $('[data-act="bg"]', w.back).textContent = 'Đóng';
+    const note = $('[data-note]', w.back);
+    if (note) note.textContent = '';
   }
 }
