@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thông Ngữ - Tra nhanh</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="popup">
+  <div class="pop">
+    <form class="pop-head" id="pop-form" autocomplete="off">
+      <div class="brand-mark">Ă</div>
+      <input id="pq" spellcheck="false" placeholder="Gõ thuật ngữ cần tra...">
+      <span class="badge badge-teal" id="pdir">Anh → Việt</span>
+      <button type="button" class="icon-btn" id="pclose" title="Đóng (Esc)"><i data-icon="close"></i></button>
+    </form>
+
+    <div class="pop-body" id="pbody">
+      <div id="pempty" class="empty" style="padding:40px 10px">
+        <div class="empty-icon"><i data-icon="search"></i></div>
+        <h3>Chưa có chữ nào được bôi đen</h3>
+        <p>Bôi đen một thuật ngữ rồi bấm lại phím tắt, hoặc gõ vào ô phía trên.</p>
+      </div>
+      <div id="pres" hidden>
+        <div class="pop-term term-text" id="pterm"></div>
+        <div class="result-meta" id="pmeta"></div>
+        <div id="psaved"></div>
+        <div class="pop-section">
+          <div class="card-title">Gợi ý cách dịch <span class="muted small" style="font-weight:400">· bấm để chọn</span></div>
+          <div class="cands" id="pcands"></div>
+          <div class="note-warn" id="perr"></div>
+        </div>
+        <div class="pop-section" id="pdef-wrap" hidden>
+          <div class="card-title">Giải nghĩa</div>
+          <div class="defs" id="pdefs"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pop-foot">
+      <input class="input select" id="pfield" list="fields-list" placeholder="Chuyên ngành">
+      <button class="btn btn-primary btn-sm" id="psave" disabled><i data-icon="check"></i>Lưu</button>
+      <button class="icon-btn" id="popen" title="Mở trong cửa sổ chính"><i data-icon="window"></i></button>
+    </div>
+  </div>
+  <datalist id="fields-list"></datalist>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/popup.js"></script>
+</body>
+</html>

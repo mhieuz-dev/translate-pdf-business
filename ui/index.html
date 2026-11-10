@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thông Ngữ</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">Ă</div>
+        <div>
+          <div class="brand-name">Thông Ngữ</div>
+          <div class="brand-sub">Trợ lý thuật ngữ paper</div>
+        </div>
+      </div>
+      <nav class="nav" id="nav">
+        <button data-page="lookup" class="active"><i data-icon="search"></i>Tra cứu</button>
+        <button data-page="glossary"><i data-icon="book"></i>Bảng thuật ngữ<span class="count" id="nav-count">0</span></button>
+        <button data-page="pdf"><i data-icon="file"></i>Dịch PDF</button>
+        <button data-page="settings"><i data-icon="settings"></i>Cài đặt</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="hotkey-hint" id="hotkey-hint">Bôi đen chữ ở bất kỳ đâu rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd> để tra nhanh.</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- ================= TRA CỨU ================= -->
+      <section class="page" data-page="lookup">
+        <div class="page-head">
+          <div class="eyebrow">Tra cứu</div>
+          <h1>Tra thuật ngữ Anh - Việt</h1>
+          <p>Gõ một từ, cụm từ hoặc dán cả câu. Kết quả gom từ bảng thuật ngữ của bạn, Wikipedia, Google và từ điển.</p>
+        </div>
+
+        <form class="search-box" id="search-form" autocomplete="off">
+          <i data-icon="search"></i>
+          <input id="q" placeholder="Ví dụ: overfitting, distribution shift, học tăng cường..." spellcheck="false">
+          <button type="button" class="dir-toggle auto" id="dir-toggle" title="Đổi chiều dịch"><span id="dir-label">Anh → Việt</span><i data-icon="swap"></i></button>
+          <button type="submit" class="btn btn-primary">Tra</button>
+        </form>
+
+        <div id="lookup-empty">
+          <div class="recent" id="recent-wrap" hidden>
+            <div class="card-title">Tra gần đây</div>
+            <div class="chips" id="recent"></div>
+          </div>
+          <div class="card empty-hero">
+            <div class="tip"><div class="tip-num">1</div><h3>Bôi đen là tra</h3><p>Đang đọc PDF hay web, bôi đen thuật ngữ rồi bấm <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>E</kbd>. Cửa sổ nhỏ hiện ngay kết quả.</p></div>
+            <div class="tip"><div class="tip-num">2</div><h3>Chọn cách dịch của bạn</h3><p>So sánh các gợi ý, chọn cách dịch hợp ngữ cảnh rồi lưu vào bảng thuật ngữ riêng.</p></div>
+            <div class="tip"><div class="tip-num">3</div><h3>Viết thống nhất</h3><p>Lần sau tra lại, cách dịch bạn đã chọn luôn hiện đầu tiên. Tra ngược Việt → Anh khi viết bài.</p></div>
+          </div>
+        </div>
+
+        <div class="result" id="result" hidden>
+          <div class="stack">
+            <div class="card card-pad">
+              <div class="result-term term-text" id="r-term"></div>
+              <div class="result-meta" id="r-meta"></div>
+              <div id="r-saved"></div>
+            </div>
+            <div class="card card-pad">
+              <div class="card-title"><span id="r-cands-title">Gợi ý cách dịch</span> <span class="muted small" id="r-cands-hint" style="font-weight:400">· bấm để chọn</span></div>
+              <div class="cands" id="r-cands"></div>
+              <div class="note-warn" id="r-errors"></div>
+            </div>
+            <div class="card card-pad" id="r-intext" hidden>
+              <div class="card-title"><i data-icon="book"></i>Thuật ngữ của bạn trong câu này</div>
+              <div class="cands" id="r-intext-list"></div>
+            </div>
+            <div class="card card-pad" id="r-def-card" hidden>
+              <div class="card-title">Giải nghĩa</div>
+              <div class="defs" id="r-defs"></div>
+            </div>
+          </div>
+
+          <div class="card card-pad save-card" id="save-card">
+            <div class="card-title"><i data-icon="bookmark"></i>Lưu vào bảng thuật ngữ</div>
+            <div class="field"><label for="s-en">Tiếng Anh</label><input class="input" id="s-en"></div>
+            <div class="field"><label for="s-vi">Tiếng Việt (cách bạn sẽ dùng)</label><input class="input" id="s-vi" placeholder="Chọn gợi ý bên trái hoặc tự gõ"></div>
+            <div class="field"><label for="s-field">Chuyên ngành</label><input class="input" id="s-field" list="fields-list" placeholder="Ví dụ: Học máy, Kinh tế lượng"></div>
+            <div class="field"><label for="s-note">Ghi chú / ngữ cảnh</label><textarea class="textarea" id="s-note" placeholder="Câu gốc trong paper, lý do chọn cách dịch này..."></textarea></div>
+            <div class="save-actions">
+              <button class="btn btn-primary" id="s-save"><i data-icon="check"></i>Lưu thuật ngữ</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= BẢNG THUẬT NGỮ ================= -->
+      <section class="page" data-page="glossary" hidden>
+        <div class="page-head row" style="align-items:flex-end">
+          <div class="grow">
+            <div class="eyebrow">Bảng thuật ngữ</div>
+            <h1>Thuật ngữ của bạn</h1>
+            <p>Một cách dịch thống nhất cho mỗi thuật ngữ, dùng cho cả bài viết.</p>
+          </div>
+          <button class="btn btn-primary" id="g-add"><i data-icon="plus"></i>Thêm thuật ngữ</button>
+        </div>
+        <div class="toolbar">
+          <div class="search-mini"><i data-icon="search"></i><input class="input" id="g-q" placeholder="Tìm theo tiếng Anh hoặc tiếng Việt (gõ không dấu cũng được)"></div>
+          <select class="select" id="g-field"><option value="">Tất cả chuyên ngành</option></select>
+          <button class="btn btn-outline" id="g-import"><i data-icon="upload"></i>Nhập CSV</button>
+          <button class="btn btn-outline" id="g-export"><i data-icon="download"></i>Xuất CSV</button>
+        </div>
+        <div class="card table-wrap" id="g-table-card">
+          <table>
+            <thead><tr><th>Tiếng Anh</th><th>Tiếng Việt</th><th>Chuyên ngành</th><th>Ghi chú</th><th></th></tr></thead>
+            <tbody id="g-rows"></tbody>
+          </table>
+          <div class="table-foot" id="g-foot"></div>
+        </div>
+        <div class="card empty" id="g-empty" hidden>
+          <div class="empty-icon"><i data-icon="book"></i></div>
+          <h3 id="g-empty-title">Chưa có thuật ngữ nào</h3>
+          <p id="g-empty-text">Tra một từ ở mục Tra cứu rồi bấm "Lưu thuật ngữ", hoặc thêm tay bằng nút phía trên.</p>
+        </div>
+      </section>
+
+      <!-- ================= DỊCH PDF ================= -->
+      <section class="page" data-page="pdf" hidden>
+        <div class="page-head">
+          <div class="eyebrow">Dịch PDF</div>
+          <h1>Dịch cả bài paper</h1>
+          <p>Giữ nguyên bố cục, công thức, bảng và hình. Chạy bằng PDFMathTranslate ngay trên máy bạn.</p>
+        </div>
+        <div class="card card-pad" id="pdf-missing" hidden>
+          <div class="card-title"><i data-icon="alert"></i>Chưa tìm thấy PDFMathTranslate</div>
+          <p class="muted" style="margin:0 0 12px">Cài một lần bằng lệnh dưới đây (miễn phí), rồi bấm "Kiểm tra lại".</p>
+          <div class="code" style="display:block;padding:10px 12px">pip install pdf2zh-next</div>
+          <div class="row" style="margin-top:14px"><button class="btn btn-outline btn-sm" id="pdf-recheck">Kiểm tra lại</button><span class="small muted" id="pdf-missing-detail"></span></div>
+        </div>
+        <div id="pdf-ready">
+          <div class="dropzone" id="dropzone">
+            <div class="empty-icon"><i data-icon="upload"></i></div>
+            <h3>Kéo thả file PDF vào đây</h3>
+            <p>hoặc bấm để chọn file</p>
+          </div>
+          <div class="opts">
+            <div class="field"><label for="pdf-lang">Dịch sang</label>
+              <select class="select" id="pdf-lang"><option value="vi">Tiếng Việt</option><option value="en">Tiếng Anh</option></select></div>
+            <div class="field"><label for="pdf-engine">Dịch vụ dịch</label>
+              <select class="select" id="pdf-engine"><option value="bing">Bing Translator (miễn phí)</option><option value="google">Google Dịch (miễn phí)</option></select></div>
+            <label class="check"><input type="checkbox" id="pdf-dual" checked><div><b>Tạo bản song ngữ</b><span>Trang gốc và trang dịch đặt cạnh nhau để đối chiếu</span></div></label>
+          </div>
+          <div class="jobs" id="jobs"></div>
+        </div>
+      </section>
+
+      <!-- ================= CÀI ĐẶT ================= -->
+      <section class="page" data-page="settings" hidden>
+        <div class="page-head">
+          <div class="eyebrow">Cài đặt</div>
+          <h1>Cài đặt</h1>
+        </div>
+        <div class="card card-pad">
+          <div class="setting">
+            <div class="setting-text"><b>Phím tắt tra nhanh</b><span id="set-hotkey-text">Bôi đen chữ ở bất kỳ ứng dụng nào rồi bấm phím tắt để mở cửa sổ tra nhanh.</span></div>
+            <button class="btn btn-outline btn-sm" id="set-hotkey">Cài phím tắt</button>
+          </div>
+          <div class="setting">
+            <div class="setting-text"><b>Thư mục dữ liệu</b><span>Bảng thuật ngữ được lưu trên máy bạn tại <span class="code" id="set-data"></span></span></div>
+            <button class="btn btn-outline btn-sm" id="set-open-data">Mở thư mục</button>
+          </div>
+          <div class="setting">
+            <div class="setting-text"><b>PDFMathTranslate</b><span id="set-pdf">Đang kiểm tra...</span></div>
+          </div>
+          <div class="setting">
+            <div class="setting-text"><b>Nguồn tra cứu</b><span>Wikipedia, Google Dịch, MyMemory và Free Dictionary API. Miễn phí, không cần tài khoản. Chữ bạn tra được gửi tới các dịch vụ này để lấy kết quả.</span></div>
+          </div>
+          <div class="setting">
+            <div class="setting-text"><b>Phiên bản</b><span id="set-version"></span></div>
+            <button class="btn btn-ghost btn-sm" id="set-github">Mã nguồn trên GitHub</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <datalist id="fields-list"></datalist>
+  <div class="toasts" id="toasts"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
