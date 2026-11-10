@@ -10,7 +10,16 @@ from __future__ import annotations
 import re
 
 LIMIT = 1000
+# Đề mục đánh số: "4 Direct Preference Optimization", "5.1 ...", "A.2 ...", "3. Method". Bing hay đảo số ra cuối
+# ("Tối ưu hóa Ưu tiên Trực tiếp 4", đo 10/11 trên paper DPO) nên tách số ra, dịch phần chữ, gắn số lại đầu.
+_HEADING = re.compile(r"^\s*(\d{1,2}(?:\.\d{1,2})*\.?|[A-Z](?:\.\d{1,2})+\.?)\s+([A-Z][^.!?]{1,90})$")
 _TOKEN = re.compile(r"<style id='\d+'>|</style>|\{v\d+\}")
+
+
+def split_heading_number(text: str) -> tuple[str, str] | None:
+    """("4", "Direct Preference Optimization") nếu text là đề mục đánh số, ngược lại None."""
+    m = _HEADING.match(text)
+    return (m.group(1), m.group(2).strip()) if m else None
 
 
 def split_for_bing(text: str, limit: int = LIMIT) -> list[str]:
@@ -64,9 +73,13 @@ def install() -> str:
     def __init__(self, *a, **k):
         orig_init(self, *a, **k)
         # bộ nhớ đệm cũ chứa bản dịch đã bị cắt cụt: đổi khoá để không lấy lại chúng
-        self.add_cache_impact_parameters("thongngu_full_length", 1)
+        self.add_cache_impact_parameters("thongngu_full_length", 2)  # 2: thêm giữ số đề mục (bản dịch cũ sai chỗ số)
 
     def do_translate(self, text, rate_limit_params: dict | None = None):
+        head = split_heading_number(text)
+        if head:
+            num, rest = head
+            return f"{num} {orig_do(self, rest, rate_limit_params)}"
         parts = split_for_bing(text)
         if len(parts) == 1:
             return orig_do(self, text, rate_limit_params)
