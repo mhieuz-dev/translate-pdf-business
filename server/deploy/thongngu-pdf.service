@@ -14,7 +14,7 @@ WorkingDirectory=/opt/thongngu-pdf
 # File do quản trị đặt riêng, không nằm trong repo; thiếu file thì dịch vụ vẫn chạy, chỉ không gửi thư.
 EnvironmentFile=-/etc/thongngu-pdf.env
 Environment=THONGNGU_DATA_DIR=/var/lib/thongngu-pdf
-Environment=THONGNGU_ALLOWED_ORIGINS=https://translate.document.mhieuz.com,https://thong-ngu.vercel.app
+Environment=THONGNGU_ALLOWED_ORIGINS=https://translate.mhieuz.com,https://translate.document.mhieuz.com,https://thong-ngu.vercel.app
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/thongngu-pdf/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8787 --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=on-failure

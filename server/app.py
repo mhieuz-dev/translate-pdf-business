@@ -49,7 +49,7 @@ class Settings:
     data_dir: Path = Path(os.environ.get("THONGNGU_DATA_DIR", HERE / "data"))
     allowed_origins: list[str] = field(
         default_factory=lambda: os.environ.get(
-            "THONGNGU_ALLOWED_ORIGINS", "https://translate.document.mhieuz.com,https://thong-ngu.vercel.app,http://127.0.0.1:8765,http://localhost:8765"
+            "THONGNGU_ALLOWED_ORIGINS", "https://translate.mhieuz.com,https://translate.document.mhieuz.com,https://thong-ngu.vercel.app,http://127.0.0.1:8765,http://localhost:8765"
         ).split(",")
     )
     max_mb: int = _env_int("THONGNGU_MAX_MB", 30)
