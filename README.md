@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://translate.mhieuz.com"><b>Dùng ngay: translate.mhieuz.com</b></a><br>
+  <a href="https://translate.document.mhieuz.com"><b>Dùng ngay: translate.document.mhieuz.com</b></a><br>
   Miễn phí, mã nguồn mở, không cần tài khoản, dùng được trên điện thoại
 </p>
 
