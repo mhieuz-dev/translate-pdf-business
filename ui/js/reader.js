@@ -41,7 +41,7 @@ async function openReader(job) {
   el.innerHTML = `
     <div class="reader-bar">
       <div class="reader-title">
-        <div class="brand-mark">Ă</div>
+        <div class="brand-mark" role="img" aria-label="Thông Ngữ"></div>
         <div style="min-width:0">
           <div class="reader-name">${esc(job.name)}</div>
           <div class="reader-sub">Bấm một từ để xem nghĩa · kéo chọn đoạn rồi bấm Dịch</div>

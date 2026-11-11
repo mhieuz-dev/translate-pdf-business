@@ -57,14 +57,9 @@ input, textarea, select, button { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 22px; }
 .brand-mark {
   width: 40px; height: 40px; border-radius: 12px;
-  background: var(--teal); color: #fff;
-  display: grid; place-items: center;
-  font-weight: 700; font-size: 20px; position: relative;
-}
-.brand-mark::after {
-  content: ""; position: absolute; right: -3px; top: -3px;
-  width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
-  border: 2px solid #fff;
+  background: url("../favicon.png") center / cover no-repeat;
+  font-size: 0; color: transparent; /* logo MHZ là ảnh; chữ trong thẻ chỉ để dự phòng */
+  box-shadow: 0 1px 3px rgba(16, 40, 44, .25);
 }
 .brand-name { font-weight: 600; font-size: 17px; line-height: 1.2; }
 .brand-sub { font-size: 11.5px; color: var(--muted); }
@@ -357,7 +352,6 @@ body.popup { background: #fff; }
   border-bottom: 1px solid var(--line-2);
 }
 .pop-head .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
-.pop-head .brand-mark::after { width: 8px; height: 8px; right: -2px; top: -2px; }
 .pop-head input { flex: 1; border: 0; outline: none; font-size: 15px; font-weight: 500; min-width: 0; background: transparent; }
 .pop-body { flex: 1; overflow-y: auto; padding: 16px; }
 .pop-term { font-size: 21px; font-weight: 600; line-height: 1.3; word-break: break-word; }
@@ -443,7 +437,6 @@ a.btn { text-decoration: none; }
 }
 .reader-title { min-width: 0; flex: 1; display: flex; align-items: center; gap: 12px; }
 .reader-title .brand-mark { width: 34px; height: 34px; font-size: 17px; border-radius: 10px; }
-.reader-title .brand-mark::after { width: 8px; height: 8px; right: -2px; top: -2px; }
 .reader-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .reader-sub { font-size: 12px; color: var(--muted); }
 .seg { display: inline-flex; background: var(--line-2); border-radius: 10px; padding: 3px; gap: 2px; }
