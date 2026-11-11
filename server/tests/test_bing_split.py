@@ -48,3 +48,14 @@ def test_ordinary_text_is_not_treated_as_heading():
     assert split_heading_number("Direct Preference Optimization") is None
     long = "1 " + "word " * 40
     assert split_heading_number(long) is None  # quá dài để là đề mục
+
+
+def test_gap_split_points_separates_far_apart_lines():
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from thongngu_layout import gap_split_points
+    # đoạn văn thường: dòng cao 12, khe 3 -> không tách
+    para = [(700, 712), (685, 697), (670, 682)]
+    assert gap_split_points(para) == []
+    # bảng trang bìa: ô 1 có 2 dòng sát nhau, các ô sau cách ~29 -> tách trước mỗi ô
+    rows = [(460, 472), (447, 459), (406, 418), (365, 377)]
+    assert gap_split_points(rows) == [2, 3]

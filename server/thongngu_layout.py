@@ -203,6 +203,48 @@ def mark_references(docs) -> None:
                     in_refs = False
 
 
+# ---------------------------------------------------------------- tách đoạn có khoảng trống lớn
+GAP_SPLIT = 1.5  # khoảng trống giữa 2 dòng > 1.5 lần chiều cao dòng thì không thể cùng một đoạn
+
+
+def gap_split_points(lines: list[tuple[float, float]]) -> list[int]:
+    """lines: (y_dưới, y_trên) của từng dòng theo thứ tự đọc (toạ độ PDF, y tăng lên trên).
+    Trả về các chỉ số j mà đoạn phải tách TRƯỚC dòng j. Đoạn văn thường có khe 0.2-0.4 lần chiều cao dòng;
+    bảng thông tin ở trang bìa Taylor & Francis có khe ~2.4 lần (đo 11/11) nhưng bị gộp thành một vùng."""
+    if len(lines) < 2:
+        return []
+    heights = sorted(t - b for b, t in lines if t > b)
+    if not heights:
+        return []
+    h = heights[len(heights) // 2]
+    return [j for j in range(1, len(lines)) if lines[j - 1][0] - lines[j][1] > GAP_SPLIT * h]
+
+
+def split_gapped_paragraphs(finder, paragraphs) -> int:
+    from babeldoc.format.pdf.document_il import Box, PdfParagraph
+    from babeldoc.format.pdf.document_il.midend.paragraph_finder import generate_base58_id
+
+    added = 0
+    i = 0
+    while i < len(paragraphs):
+        p = paragraphs[i]
+        comps = p.pdf_paragraph_composition or []
+        idx = [k for k, c in enumerate(comps) if c is not None and c.pdf_line is not None and c.pdf_line.box is not None]
+        cuts = gap_split_points([(comps[k].pdf_line.box.y, comps[k].pdf_line.box.y2) for k in idx]) if len(idx) == len(comps) else []
+        if cuts:
+            k = idx[cuts[0]]
+            new = PdfParagraph(box=Box(0, 0, 0, 0), pdf_paragraph_composition=comps[k:], unicode="",
+                               debug_id=generate_base58_id(), layout_label=p.layout_label, layout_id=p.layout_id)
+            p.pdf_paragraph_composition = comps[:k]
+            finder.update_paragraph_data(p)
+            finder.update_paragraph_data(new)
+            paragraphs.insert(i + 1, new)
+            added += 1
+            continue  # xét lại đoạn hiện tại (có thể còn chỗ tách khác ở phần sau)
+        i += 1
+    return added
+
+
 # ---------------------------------------------------------------- khung văn bản bị nhận hẹp
 TEXT_LAYOUTS = {"plain text", "text", "paragraph_hybrid", "list_item_hybrid"}
 
@@ -487,6 +529,18 @@ def install(line_skip_default: float = 1.12, justify: bool = True, hs_min: float
 
         is_bullet_point._thongngu = True
         paragraph_finder.is_bullet_point = is_bullet_point
+
+    # Dòng cách nhau xa bất thường (bảng thông tin trang bìa, danh sách ô kẻ) bị mô hình bố cục gom một vùng:
+    # tách thành đoạn riêng, nếu không bản dịch dồn hết vào ô đầu, đè lên đường kẻ, các ô sau trống.
+    PF = paragraph_finder.ParagraphFinder
+    orig_indep = PF.process_independent_paragraphs
+    if not getattr(orig_indep, "_thongngu", False):
+        def process_independent_paragraphs(self, paragraphs, median_width):
+            split_gapped_paragraphs(self, paragraphs)
+            return orig_indep(self, paragraphs, median_width)
+
+        process_independent_paragraphs._thongngu = True
+        PF.process_independent_paragraphs = process_independent_paragraphs
 
     from babeldoc.format.pdf.document_il.midend.layout_parser import LayoutParser
 
