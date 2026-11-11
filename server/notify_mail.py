@@ -5,10 +5,10 @@ cổng 587 + App Password, thư viện chuẩn (smtplib, email.message), không 
 Thư gửi kèm bản gốc và bản dịch nếu tổng dung lượng nằm trong hạn cho phép; quá hạn thì
 vẫn gửi thư kèm đường dẫn tải (đường dẫn sống tới khi lượt dịch hết hạn).
 
-Biến môi trường:
-  GMAIL_ADDRESS        tài khoản gửi (phamliem827@gmail.com)
+Biến môi trường (đặt trong /etc/thongngu-pdf.env trên máy chủ, KHÔNG đưa lên repo):
+  GMAIL_ADDRESS        tài khoản Gmail dùng để gửi
   GMAIL_APP_PASSWORD   16 ký tự App Password của tài khoản gửi
-  THONGNGU_MAIL_TO     người nhận (mặc định iamminhhieuz206@gmail.com)
+  THONGNGU_MAIL_TO     người nhận thư báo
   THONGNGU_PUBLIC_URL  địa chỉ máy chủ để ghép link tải
   THONGNGU_MAIL_MAX_MB tổng dung lượng file đính kèm tối đa (mặc định 18 MB)
 """
@@ -24,7 +24,6 @@ from email.message import EmailMessage
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-DEFAULT_TO = "iamminhhieuz206@gmail.com"
 VNTZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 # Thứ tự ưu tiên khi phải chọn file đính kèm: bản dịch trước, bản gốc sau.
@@ -52,8 +51,7 @@ def settings() -> MailSettings:
     return MailSettings(
         sender=os.environ.get("GMAIL_ADDRESS", "").strip(),
         password=os.environ.get("GMAIL_APP_PASSWORD", "").strip(),
-        to=(os.environ.get("THONGNGU_MAIL_TO") or os.environ.get("ALERT_EMAIL_TO")
-            or DEFAULT_TO).strip(),
+        to=(os.environ.get("THONGNGU_MAIL_TO") or os.environ.get("ALERT_EMAIL_TO") or "").strip(),
         public_url=os.environ.get("THONGNGU_PUBLIC_URL", "https://mhieuz.com/thongngu-pdf").rstrip("/"),
         max_mb=_env_int("THONGNGU_MAIL_MAX_MB", 18),
     )

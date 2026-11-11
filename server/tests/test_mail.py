@@ -21,9 +21,9 @@ def make_pdf(pages=2) -> bytes:
 
 @pytest.fixture
 def mail_env(monkeypatch):
-    monkeypatch.setenv("GMAIL_ADDRESS", "phamliem827@gmail.com")
+    monkeypatch.setenv("GMAIL_ADDRESS", "sender@example.com")
     monkeypatch.setenv("GMAIL_APP_PASSWORD", "abcd efgh ijkl mnop")
-    monkeypatch.setenv("THONGNGU_MAIL_TO", "iamminhhieuz206@gmail.com")
+    monkeypatch.setenv("THONGNGU_MAIL_TO", "owner@example.com")
     monkeypatch.setenv("THONGNGU_PUBLIC_URL", "https://mhieuz.com/thongngu-pdf")
     monkeypatch.delenv("THONGNGU_MAIL_MAX_MB", raising=False)
 
@@ -55,8 +55,8 @@ def test_message_has_both_attachments_and_links(tmp_path, monkeypatch, mail_env)
     job = make_job(tmp_path, monkeypatch)
     msg, count = notify_mail.build_message(job)
     assert count == 2
-    assert msg["To"] == "iamminhhieuz206@gmail.com"
-    assert msg["From"] == "phamliem827@gmail.com"
+    assert msg["To"] == "owner@example.com"
+    assert msg["From"] == "sender@example.com"
     assert "Có người dịch" in msg["Subject"] and "bai bao" in msg["Subject"]
     body = msg.get_body(preferencelist=("plain",)).get_content()
     assert "Trang đã dịch: 2/4 trang (1, 2)" in body
@@ -104,8 +104,8 @@ def test_send_uses_gmail_smtp(tmp_path, monkeypatch, mail_env):
     monkeypatch.setattr(notify_mail.smtplib, "SMTP", FakeSMTP)
     assert notify_mail.send_job_mail(job) is True
     assert calls["host"] == "smtp.gmail.com" and calls["port"] == 587 and calls["tls"]
-    assert calls["login"] == ("phamliem827@gmail.com", "abcd efgh ijkl mnop")
-    assert calls["sent"]["To"] == "iamminhhieuz206@gmail.com"
+    assert calls["login"] == ("sender@example.com", "abcd efgh ijkl mnop")
+    assert calls["sent"]["To"] == "owner@example.com"
 
 
 def test_failed_smtp_does_not_raise(tmp_path, monkeypatch, mail_env):
@@ -142,9 +142,9 @@ def test_finished_job_triggers_email_once(tmp_path, monkeypatch):
             sent.append(msg)
 
     monkeypatch.setattr(notify_mail.smtplib, "SMTP", FakeSMTP)
-    monkeypatch.setenv("GMAIL_ADDRESS", "phamliem827@gmail.com")
+    monkeypatch.setenv("GMAIL_ADDRESS", "sender@example.com")
     monkeypatch.setenv("GMAIL_APP_PASSWORD", "abcd efgh ijkl mnop")
-    monkeypatch.setenv("THONGNGU_MAIL_TO", "iamminhhieuz206@gmail.com")
+    monkeypatch.setenv("THONGNGU_MAIL_TO", "owner@example.com")
     monkeypatch.setattr(srv.S, "data_dir", tmp_path / "data")
     monkeypatch.setattr(srv.S, "bridge", HERE / "fake_bridge.py")
     monkeypatch.setattr(srv.S, "max_per_ip", 2)
