@@ -26,3 +26,6 @@ __pycache__/
 
 # cong cu do bo cuc khi phat trien (khong can de chay)
 server/tools/
+
+# du an video gioi thieu (Remotion), khong can de chay app
+video/
