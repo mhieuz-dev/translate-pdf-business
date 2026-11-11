@@ -31,6 +31,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+import notify_mail
+
 VERSION = "0.2.0"
 HERE = Path(__file__).resolve().parent
 
@@ -158,6 +160,7 @@ class Job:
     lang: str
     dual: bool
     pages: list[int]
+    ua: str = ""
     total_pages: int = 0
     created: float = field(default_factory=time.time)
     status: str = "queued"  # queued | running | done | error
@@ -202,6 +205,24 @@ JOBS: dict[str, Job] = {}
 # Tạo lúc máy chủ khởi động (lifespan), không tạo lúc nạp module: asyncio.Queue gắn với
 # event loop đầu tiên dùng nó, khởi động lại trong cùng tiến trình sẽ treo hàng đợi.
 QUEUE: asyncio.Queue[str]
+MAIL_TASKS: set[asyncio.Task] = set()
+
+
+async def mail_after_done(job: Job) -> None:
+    # Gửi thư trong luồng riêng để không chặn hàng đợi (file đính kèm có thể vài chục MB).
+    try:
+        await asyncio.to_thread(notify_mail.send_job_mail, job)
+    except Exception as e:  # gửi thư hỏng không được làm chết hàng đợi
+        print(f"[job {job.id}] lỗi gửi email báo: {e!r}", file=sys.stderr, flush=True)
+
+
+def schedule_mail(job: Job) -> None:
+    """Báo về Gmail khi máy vừa dịch xong thật (lượt dùng chung bản dịch thì không báo lại)."""
+    if job.status != "done" or job.shared or not notify_mail.enabled():
+        return
+    t = asyncio.create_task(mail_after_done(job))
+    MAIL_TASKS.add(t)
+    t.add_done_callback(MAIL_TASKS.discard)
 
 
 def queue_position(job: Job) -> int | None:
@@ -385,6 +406,7 @@ async def worker() -> None:
                 job.status, job.error, job.finished = "error", friendly_error(str(e)), time.time()
                 print(f"[job {job.id}] ngoại lệ: {e!r}", file=sys.stderr, flush=True)
             finish_twins(job)
+            schedule_mail(job)
         QUEUE.task_done()
 
 
@@ -424,7 +446,7 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
-        for t in tasks:
+        for t in [*tasks, *MAIL_TASKS]:
             t.cancel()
 
 
@@ -497,7 +519,8 @@ async def create_job(
             raise HTTPException(429, f"Mỗi người dịch tối đa {S.max_per_ip} file cùng lúc. Đợi file trước xong nhé.")
 
     job = Job(id=secrets.token_hex(16), ip=ip, name=Path(file.filename or "paper.pdf").name[:120],
-              lang=lang, dual=dual, pages=chosen, total_pages=total, key=key)
+              lang=lang, dual=dual, pages=chosen, ua=request.headers.get("user-agent", "")[:200],
+              total_pages=total, key=key)
     job.dir.mkdir(parents=True)
     (job.dir / "input.pdf").write_bytes(data)
     # Bản gốc chỉ gồm các trang được chọn, để web đặt cạnh bản dịch theo đúng từng trang.
