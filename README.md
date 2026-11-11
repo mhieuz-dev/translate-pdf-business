@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://thong-ngu.vercel.app"><b>Dùng ngay: thong-ngu.vercel.app</b></a><br>
+  <a href="https://translate.mhieuz.com"><b>Dùng ngay: translate.mhieuz.com</b></a><br>
   Miễn phí, mã nguồn mở, không cần tài khoản, dùng được trên điện thoại
 </p>
 
