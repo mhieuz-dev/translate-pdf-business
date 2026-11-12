@@ -106,7 +106,7 @@ function renderResult(res) {
   $('#r-intext').hidden = !sentence;
   if (sentence) {
     $('#r-intext-list').innerHTML = res.in_text.length
-      ? res.in_text.map((t) => `<div class="cand"><div class="grow"><div class="term-text">${esc(t.en)} → <b style="color:var(--teal)">${esc(t.vi)}</b></div>${t.field ? `<div class="src">${esc(t.field)}</div>` : ''}</div></div>`).join('')
+      ? res.in_text.map((t) => `<div class="cand"><div class="grow"><div class="term-text">${esc(t.en)} → <b class="teal">${esc(t.vi)}</b></div>${t.field ? `<div class="src">${esc(t.field)}</div>` : ''}</div></div>`).join('')
       : '<div class="muted small">Câu này chưa chứa thuật ngữ nào trong bảng của bạn. Bôi đen từng thuật ngữ để tra và lưu.</div>';
   }
 
@@ -262,7 +262,7 @@ $('#g-add').addEventListener('click', () => editTerm(null));
 async function deleteTerm(term) {
   const ok = await modal({
     title: 'Xoá thuật ngữ?',
-    body: `<p style="margin:0">Xoá <b>${esc(term.en)}</b> → <b>${esc(term.vi)}</b> khỏi bảng thuật ngữ. Không hoàn tác được.</p>`,
+    body: `<p class="m0">Xoá <b>${esc(term.en)}</b> → <b>${esc(term.vi)}</b> khỏi bảng thuật ngữ. Không hoàn tác được.</p>`,
     actions: [{ label: 'Huỷ', value: false }, { label: 'Xoá', value: true, cls: 'btn-danger', primary: true }],
   });
   if (!ok) return;

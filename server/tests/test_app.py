@@ -29,9 +29,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(srv.S, "max_per_ip", 2)
     monkeypatch.setattr(srv.S, "max_pages", 40)
     monkeypatch.setattr(srv.S, "max_mb", 30)
+    monkeypatch.setattr(srv.S, "job_rate", 1000)  # test gửi nhiều lần, không vướng giới hạn
     monkeypatch.delenv("FAKE_MODE", raising=False)
     monkeypatch.delenv("FAKE_SLEEP", raising=False)
     srv.JOBS.clear()
+    srv.JOB_ATTEMPTS.clear()
     srv.RECENT.clear()
     with TestClient(srv.app) as c:
         yield c
@@ -271,6 +273,68 @@ def test_cors_allows_web_origin_only(client):
     assert ok.headers.get("access-control-allow-origin") == "https://thong-ngu.vercel.app"
     bad = client.options("/jobs", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
     assert "access-control-allow-origin" not in bad.headers
+
+
+# ---------- bảo mật ----------
+def test_security_headers_on_api_and_file(client):
+    r = client.get("/health")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["x-frame-options"] == "DENY"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+    job = wait_done(client, upload(client).json()["id"])
+    f = client.get(f"/jobs/{job['id']}/files/mono")
+    assert f.headers["content-security-policy"] == "default-src 'none'; sandbox"
+    assert f.headers["cache-control"] == "private, no-store"
+    assert f.headers["cross-origin-resource-policy"] == "cross-origin"
+    assert f.headers["x-content-type-options"] == "nosniff"
+
+
+def test_rejects_unknown_host(client):
+    assert client.get("/health", headers={"Host": "evil.example"}).status_code == 400
+    assert client.get("/health", headers={"Host": "mhieuz.com"}).status_code == 200
+
+
+def test_ignores_forged_forwarded_for(client):
+    r = client.post("/jobs", files={"file": ("bai bao.pdf", make_pdf(), "application/pdf")},
+                    data={}, headers={"X-Forwarded-For": "203.0.113.9"})
+    assert r.status_code == 202
+    assert srv.JOBS[r.json()["id"]].ip == "testclient"
+    wait_done(client, r.json()["id"])
+
+
+def test_job_attempt_rate_limit(client, monkeypatch):
+    monkeypatch.setattr(srv.S, "job_rate", 2)
+    srv.JOB_ATTEMPTS.clear()
+    assert upload(client, b"not a pdf").status_code == 400
+    assert upload(client, b"not a pdf").status_code == 400
+    r = upload(client)
+    assert r.status_code == 429 and "quá nhiều" in r.json()["detail"]
+
+
+def test_total_pages_cap(client, monkeypatch):
+    monkeypatch.setattr(srv.S, "max_total_pages", 2)
+    r = upload(client)  # file 3 trang
+    assert r.status_code == 413 and "tối đa 2 trang" in r.json()["detail"]
+
+
+def test_filename_is_sanitized(client):
+    assert srv.safe_filename("../../etc/pa\nsswd.pdf") == "passwd.pdf"
+    assert srv.safe_filename("..") == "paper.pdf"
+    r = client.post("/jobs", files={"file": ("../../pa\nsswd.pdf", make_pdf(), "application/pdf")}, data={})
+    assert r.status_code == 202
+    name = r.json()["name"]
+    assert name.endswith(".pdf") and "\n" not in name and "/" not in name and not name.startswith(".")
+    wait_done(client, r.json()["id"])
+
+
+def test_job_folder_and_files_are_private(client):
+    job = wait_done(client, upload(client).json()["id"])
+    d = srv.S.data_dir / job["id"]
+    assert (d.stat().st_mode & 0o777) == 0o700
+    assert ((d / "input.pdf").stat().st_mode & 0o777) == 0o600
+    assert ((d / "original.pdf").stat().st_mode & 0o777) == 0o600
 
 
 @pytest.mark.skipif(os.environ.get("THONGNGU_LIVE") != "1", reason="dịch thật cần mạng, bật bằng THONGNGU_LIVE=1")

@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="vendor/pdfjs/text_layer.css?v=4.10.38">
-  <link rel="stylesheet" href="css/app.css?v=0.4.4">
+  <link rel="stylesheet" href="css/app.css?v=0.5.0">
 </head>
 <body>
   <div class="app">
@@ -67,7 +67,7 @@
               <div id="r-saved"></div>
             </div>
             <div class="card card-pad">
-              <div class="card-title"><span id="r-cands-title">Gợi ý cách dịch</span> <span class="muted small" id="r-cands-hint" style="font-weight:400">· bấm để chọn</span></div>
+              <div class="card-title"><span id="r-cands-title">Gợi ý cách dịch</span> <span class="muted small fw-400" id="r-cands-hint">· bấm để chọn</span></div>
               <div class="cands" id="r-cands"></div>
               <div class="note-warn" id="r-errors"></div>
             </div>
@@ -96,7 +96,7 @@
 
       <!-- ================= BẢNG THUẬT NGỮ ================= -->
       <section class="page" data-page="glossary" hidden>
-        <div class="page-head row" style="align-items:flex-end">
+        <div class="page-head row align-end">
           <div class="grow">
             <div class="eyebrow">Bảng thuật ngữ</div>
             <h1>Thuật ngữ của bạn</h1>
@@ -135,7 +135,7 @@
           <div class="empty-icon"><i data-icon="alert"></i></div>
           <h3>Máy chủ dịch PDF đang tạm nghỉ</h3>
           <p id="pdf-offline-text">Phần tra thuật ngữ vẫn dùng bình thường. Bạn thử lại sau ít phút nhé.</p>
-          <button class="btn btn-outline" style="margin-top:16px" id="pdf-recheck">Thử lại</button>
+          <button class="btn btn-outline mt-16" id="pdf-recheck">Thử lại</button>
         </div>
         <div id="pdf-ready">
           <label class="dropzone" id="dropzone">
@@ -152,7 +152,7 @@
             <label class="check"><input type="checkbox" id="pdf-dual" checked><div><b>Tạo bản song ngữ</b><span>Trang gốc và trang dịch đặt cạnh nhau để đối chiếu</span></div></label>
           </div>
           <div class="jobs" id="jobs"></div>
-          <p class="note-warn" style="margin-top:18px">File được gửi lên máy chủ của Thông Ngữ để dịch rồi tự xoá sau <span id="pdf-keep-hours">2</span> giờ. Đừng tải lên tài liệu mật.</p>
+          <p class="note-warn mt-18">File được gửi lên máy chủ của Thông Ngữ để dịch rồi tự xoá sau <span id="pdf-keep-hours">2</span> giờ. Đừng tải lên tài liệu mật.</p>
         </div>
       </section>
 
@@ -184,13 +184,13 @@
   <datalist id="fields-list"></datalist>
   <div class="toasts" id="toasts"></div>
 
-  <script src="js/icons.js?v=0.4.4"></script>
-  <script src="js/web-backend.js?v=0.4.4"></script>
-  <script src="js/config.js?v=0.4.4"></script>
-  <script src="js/api.js?v=0.4.4"></script>
-  <script src="js/common.js?v=0.4.4"></script>
-  <script src="js/main.js?v=0.4.4"></script>
-  <script src="js/pdf.js?v=0.4.4"></script>
-  <script src="js/reader.js?v=0.4.4"></script>
+  <script src="js/icons.js?v=0.5.0"></script>
+  <script src="js/web-backend.js?v=0.5.0"></script>
+  <script src="js/config.js?v=0.5.0"></script>
+  <script src="js/api.js?v=0.5.0"></script>
+  <script src="js/common.js?v=0.5.0"></script>
+  <script src="js/main.js?v=0.5.0"></script>
+  <script src="js/pdf.js?v=0.5.0"></script>
+  <script src="js/reader.js?v=0.5.0"></script>
 </body>
 </html>

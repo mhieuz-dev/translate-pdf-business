@@ -15,25 +15,26 @@ import asyncio
 import contextlib
 import hashlib
 import json
-import statistics
 import os
 import re
 import secrets
 import shutil
+import statistics
 import sys
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import notify_mail
 import pymupdf
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
-import notify_mail
-
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 HERE = Path(__file__).resolve().parent
 
 
@@ -52,11 +53,22 @@ class Settings:
             "THONGNGU_ALLOWED_ORIGINS", "https://translate.mhieuz.com,https://translate.document.mhieuz.com,https://thong-ngu.vercel.app,http://127.0.0.1:8765,http://localhost:8765"
         ).split(",")
     )
+    allowed_hosts: list[str] = field(
+        default_factory=lambda: os.environ.get(
+            "THONGNGU_ALLOWED_HOSTS",
+            "mhieuz.com,translate.document.mhieuz.com,translate.mhieuz.com,thong-ngu.vercel.app,127.0.0.1,localhost,testserver",
+        ).split(",")
+    )
     max_mb: int = _env_int("THONGNGU_MAX_MB", 30)
     max_pages: int = _env_int("THONGNGU_MAX_PAGES", 40)
+    max_total_pages: int = _env_int("THONGNGU_MAX_TOTAL_PAGES", 1000)
     keep_hours: int = _env_int("THONGNGU_KEEP_HOURS", 2)
     max_queue: int = _env_int("THONGNGU_MAX_QUEUE", 20)
     max_per_ip: int = _env_int("THONGNGU_MAX_PER_IP", 2)
+    # Mỗi IP chỉ được THỬ gửi file bấy nhiêu lần trong một cửa sổ thời gian; tính cả lần
+    # gửi hỏng để kẻ xấu không spam file rác đốt CPU đọc PDF.
+    job_rate: int = _env_int("THONGNGU_JOB_RATE", 10)
+    job_rate_window: int = _env_int("THONGNGU_JOB_RATE_WINDOW", 600)
     # Đo 10/11/2026: 12 yêu cầu song song nhanh gấp đôi mặc định (4); cao hơn không nhanh thêm.
     qps: int = _env_int("THONGNGU_QPS", 12)
     engine: str = os.environ.get("THONGNGU_ENGINE", "bing")
@@ -68,6 +80,16 @@ class Settings:
 S = Settings()
 PAGES_RE = re.compile(r"^\s*\d+\s*(-\s*\d*\s*)?(,\s*\d+\s*(-\s*\d*\s*)?)*$")
 ID_RE = re.compile(r"^[0-9a-f]{32}$")
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
+FILE_PATH_RE = re.compile(r"^/jobs/[0-9a-f]{32}/files/[a-z]+$")
+
+
+def safe_filename(name: str) -> str:
+    """Tên file người dùng gửi lên chỉ dùng để hiện/đặt tên tải về: bỏ đường dẫn,
+    ký tự điều khiển (chống chèn header email) và giới hạn độ dài."""
+    name = (name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    name = CONTROL_RE.sub("", name).strip().strip(".")
+    return (name[:120].strip() or "paper.pdf")
 
 
 # ======================= Trang cần dịch =======================
@@ -202,10 +224,25 @@ class Job:
 
 
 JOBS: dict[str, Job] = {}
+JOB_ATTEMPTS: dict[str, deque[float]] = {}  # IP -> các lần thử gửi file gần đây
 # Tạo lúc máy chủ khởi động (lifespan), không tạo lúc nạp module: asyncio.Queue gắn với
 # event loop đầu tiên dùng nó, khởi động lại trong cùng tiến trình sẽ treo hàng đợi.
 QUEUE: asyncio.Queue[str]
 MAIL_TASKS: set[asyncio.Task] = set()
+
+
+def job_rate_limited(ip: str) -> bool:
+    """Đếm mọi lần thử POST /jobs của một IP trong cửa sổ trượt (kể cả file hỏng)."""
+    if S.job_rate <= 0:
+        return False
+    now = time.time()
+    q = JOB_ATTEMPTS.setdefault(ip, deque())
+    while q and q[0] < now - S.job_rate_window:
+        q.popleft()
+    if len(q) >= S.job_rate:
+        return True
+    q.append(now)
+    return False
 
 
 async def mail_after_done(job: Job) -> None:
@@ -362,6 +399,7 @@ async def run_job(job: Job) -> None:
                     if p and Path(p).is_file():
                         dest = job.dir / f"{k}.pdf"
                         shutil.move(p, dest)
+                        dest.chmod(0o600)
                         job.files[k] = dest.name
             elif kind == "error":
                 job.error = friendly_error(str(ev.get("message", "")))
@@ -412,8 +450,15 @@ async def worker() -> None:
 
 def cleanup_once(now: float | None = None) -> int:
     """Xoá lượt dịch quá hạn (cả trên đĩa), kể cả thư mục mồ côi sau khi khởi động lại. Trả về số thư mục đã xoá."""
-    cutoff = (now or time.time()) - S.keep_hours * 3600
+    now = now or time.time()
+    cutoff = now - S.keep_hours * 3600
     removed = 0
+    attempt_cutoff = now - S.job_rate_window
+    for ip, q in list(JOB_ATTEMPTS.items()):
+        while q and q[0] < attempt_cutoff:
+            q.popleft()
+        if not q:
+            JOB_ATTEMPTS.pop(ip, None)
     for jid, job in list(JOBS.items()):
         # tính từ lúc dịch xong: người chờ lâu trong hàng vẫn có đủ thời gian tải bản dịch
         if (job.finished or job.created) < cutoff and job.status in ("done", "error"):
@@ -440,7 +485,9 @@ async def janitor() -> None:
 async def lifespan(_app: FastAPI):
     global QUEUE
     QUEUE = asyncio.Queue()
-    S.data_dir.mkdir(parents=True, exist_ok=True)
+    S.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with contextlib.suppress(OSError):
+        os.chmod(S.data_dir, 0o700)  # thư mục cũ có thể còn quyền 755
     tasks = [asyncio.create_task(worker()), asyncio.create_task(janitor())]
     _app.state.tasks = tasks
     try:
@@ -450,19 +497,50 @@ async def lifespan(_app: FastAPI):
             t.cancel()
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Header bảo mật cho mọi phản hồi. File PDF sandbox để chặn JavaScript nhúng trong PDF."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        h = response.headers
+        for name in ("server", "x-powered-by"):
+            with contextlib.suppress(KeyError):
+                del h[name]
+        h["X-Content-Type-Options"] = "nosniff"
+        h["X-Frame-Options"] = "DENY"
+        h["Referrer-Policy"] = "no-referrer"
+        h["X-Robots-Tag"] = "noindex, nofollow"
+        h["X-Permitted-Cross-Domain-Policies"] = "none"
+        h["Cross-Origin-Opener-Policy"] = "same-origin"
+        h["Cross-Origin-Resource-Policy"] = "cross-origin"
+        h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        if FILE_PATH_RE.match(request.url.path):
+            h["Content-Security-Policy"] = "default-src 'none'; sandbox"
+            h["X-Download-Options"] = "noopen"
+            h["Cache-Control"] = "private, no-store"
+        else:
+            h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+            h["Cache-Control"] = "no-store"
+        return response
+
+
 app = FastAPI(title="Thông Ngữ - máy chủ dịch PDF", version=VERSION, docs_url=None, redoc_url=None, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in S.allowed_origins if o.strip()],
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type"],
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=[h.strip() for h in S.allowed_hosts if h.strip()])
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 def client_ip(request: Request) -> str:
-    # Sau Caddy: lấy IP thật từ X-Forwarded-For (Caddy tự thêm), không thì IP kết nối.
-    fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+    # uvicorn đã chạy với --proxy-headers + --forwarded-allow-ips 127.0.0.1 nên request.client
+    # là IP thật do Caddy xác nhận. KHÔNG đọc thẳng X-Forwarded-For: client có thể tự gửi
+    # header giả để vượt giới hạn mỗi IP.
+    return request.client.host if request.client else "?"
 
 
 @app.get("/health")
@@ -480,9 +558,11 @@ async def create_job(
     dual: bool = Form(True),
     pages: str = Form(""),
 ) -> dict:
+    ip = client_ip(request)
+    if job_rate_limited(ip):
+        raise HTTPException(429, f"Bạn đã gửi quá nhiều file. Thử lại sau {S.job_rate_window // 60} phút nhé.")
     if lang not in ("vi", "en"):
         raise HTTPException(400, "Ngôn ngữ chỉ có vi hoặc en")
-    ip = client_ip(request)
     data = await file.read(S.max_mb * 1024 * 1024 + 1)
     if len(data) > S.max_mb * 1024 * 1024:
         raise HTTPException(413, f"File lớn hơn {S.max_mb} MB.")
@@ -498,6 +578,8 @@ async def create_job(
         raise
     except Exception:
         raise HTTPException(400, "Không đọc được file PDF, có thể file bị hỏng.")
+    if total > S.max_total_pages:
+        raise HTTPException(413, f"File có {total} trang, tối đa {S.max_total_pages} trang.")
     try:
         chosen = parse_pages(pages, total)
     except ValueError as e:
@@ -518,17 +600,26 @@ async def create_job(
         if sum(1 for j in active if j.ip == ip) >= S.max_per_ip:
             raise HTTPException(429, f"Mỗi người dịch tối đa {S.max_per_ip} file cùng lúc. Đợi file trước xong nhé.")
 
-    job = Job(id=secrets.token_hex(16), ip=ip, name=Path(file.filename or "paper.pdf").name[:120],
+    job = Job(id=secrets.token_hex(16), ip=ip, name=safe_filename(file.filename or ""),
               lang=lang, dual=dual, pages=chosen, ua=request.headers.get("user-agent", "")[:200],
               total_pages=total, key=key)
-    job.dir.mkdir(parents=True)
+    job.dir.mkdir(parents=True, mode=0o700)
     (job.dir / "input.pdf").write_bytes(data)
+    (job.dir / "input.pdf").chmod(0o600)
     # Bản gốc chỉ gồm các trang được chọn, để web đặt cạnh bản dịch theo đúng từng trang.
     src = pymupdf.open(stream=data, filetype="pdf")
     if len(chosen) < total:
         src.select([p - 1 for p in chosen])
+    # Bỏ JavaScript / file nhúng / metadata khỏi bản gốc trước khi cho trình duyệt đọc,
+    # giữ nguyên liên kết và nội dung nhìn thấy.
+    try:
+        src.scrub(remove_links=False, redactions=False, hidden_text=False,
+                  reset_fields=False, reset_responses=False, clean_pages=False)
+    except (TypeError, ValueError):
+        pass
     src.save(job.dir / "original.pdf", garbage=3, deflate=True)
     src.close()
+    (job.dir / "original.pdf").chmod(0o600)
     JOBS[job.id] = job
     if done_same:
         link_files(done_same, job)  # đã có người dịch đúng file này: trả ngay
@@ -555,9 +646,9 @@ async def job_status(job_id: str) -> dict:
 @app.get("/jobs/{job_id}/files/{kind}")
 async def job_file(job_id: str, kind: str, download: bool = False) -> FileResponse:
     job = get_job(job_id)
-    if kind not in job.files:
+    if kind not in ("mono", "dual", "original") or kind not in job.files:
         raise HTTPException(404, "Chưa có file này.")
-    stem = Path(job.name).stem
+    stem = Path(safe_filename(job.name)).stem or "paper"
     suffix = {"dual": "song-ngu", "original": "ban-goc"}.get(kind, job.lang)
     return FileResponse(
         job.dir / job.files[kind],

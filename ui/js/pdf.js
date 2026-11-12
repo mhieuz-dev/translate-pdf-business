@@ -75,14 +75,14 @@ function jobCard(id, name) {
       <button class="icon-btn job-close" title="Ẩn khỏi danh sách">${icon('close')}</button>
     </div>
     <div class="progress"><div></div></div>
-    <div class="job-actions row" style="margin-top:12px;flex-wrap:wrap" hidden></div>`;
+    <div class="job-actions row mt-12 wrap" hidden></div>`;
   $('.job-close', el).addEventListener('click', () => { forgetJob(id); el.remove(); });
   $('#jobs').prepend(el);
   return el;
 }
 
 function setJobStatus(el, text, { percent = null, indet = false, error = false } = {}) {
-  $('.job-status', el).innerHTML = error ? `<span style="color:var(--danger)">${esc(text)}</span>` : esc(text);
+  $('.job-status', el).innerHTML = error ? `<span class="danger">${esc(text)}</span>` : esc(text);
   const bar = $('.progress', el);
   bar.classList.toggle('indet', indet);
   bar.hidden = error;

@@ -161,6 +161,21 @@ kbd {
 .grow { flex: 1; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* Tiện ích nhỏ thay cho style="" (CSP chặn style nội tuyến) */
+.m0 { margin: 0 !important; }
+.mt-0 { margin-top: 0 !important; }
+.mt-10 { margin-top: 10px !important; }
+.mt-12 { margin-top: 12px !important; }
+.mt-16 { margin-top: 16px !important; }
+.mt-18 { margin-top: 18px !important; }
+.fw-400 { font-weight: 400 !important; }
+.align-start { align-items: flex-start; }
+.align-end { align-items: flex-end; }
+.wrap { flex-wrap: wrap; }
+.gap-6 { gap: 6px; }
+.min-0 { min-width: 0; }
+.teal { color: var(--teal); }
+.danger { color: var(--danger); }
 
 /* ---------- Tra cứu ---------- */
 .search-box {

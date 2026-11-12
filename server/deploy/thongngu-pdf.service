@@ -15,6 +15,7 @@ WorkingDirectory=/opt/thongngu-pdf
 EnvironmentFile=-/etc/thongngu-pdf.env
 Environment=THONGNGU_DATA_DIR=/var/lib/thongngu-pdf
 Environment=THONGNGU_ALLOWED_ORIGINS=https://translate.mhieuz.com,https://translate.document.mhieuz.com,https://thong-ngu.vercel.app
+Environment=THONGNGU_ALLOWED_HOSTS=mhieuz.com,translate.document.mhieuz.com,translate.mhieuz.com,thong-ngu.vercel.app,127.0.0.1
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/thongngu-pdf/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8787 --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=on-failure
@@ -29,9 +30,29 @@ IOWeight=50
 TasksMax=200
 
 NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+# Có thể bật thêm sau khi thử trên VPS (một số thư viện Python dùng libffi/JIT sẽ chết):
+# MemoryDenyWriteExecute=true
+# SystemCallFilter=@system-service
 ReadWritePaths=/var/lib/thongngu-pdf /opt/thongngu-pdf/.cache /opt/thongngu-pdf/.config
 Environment=HOME=/opt/thongngu-pdf
 Environment=XDG_CACHE_HOME=/opt/thongngu-pdf/.cache

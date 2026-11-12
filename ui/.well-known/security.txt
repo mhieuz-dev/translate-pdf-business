@@ -1,0 +1,4 @@
+Contact: https://github.com/mhieuz-dev/thong-ngu/security/advisories/new
+Expires: 2027-11-12T00:00:00.000Z
+Preferred-Languages: vi, en
+Canonical: https://translate.document.mhieuz.com/.well-known/security.txt

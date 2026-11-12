@@ -42,7 +42,7 @@ async function openReader(job) {
     <div class="reader-bar">
       <div class="reader-title">
         <div class="brand-mark" role="img" aria-label="Thông Ngữ"></div>
-        <div style="min-width:0">
+        <div class="min-0">
           <div class="reader-name">${esc(job.name)}</div>
           <div class="reader-sub">Bấm một từ để xem nghĩa · kéo chọn đoạn rồi bấm Dịch</div>
         </div>
@@ -373,7 +373,7 @@ async function rdShow(query, range, span) {
   pop.className = `word-pop${passage ? ' wide' : ''}`;
   pop.innerHTML = `
     <div class="word-pop-head">
-      <div class="row" style="align-items:flex-start">
+      <div class="row align-start">
         ${passage ? `<div class="grow"><div class="src-text">${esc(query)}</div></div>` : `<div class="word-pop-term grow">${esc(query)}</div>`}
         <div class="tools">
           <button class="icon-btn" data-act="speak" title="Nghe">${icon('speaker')}</button>
@@ -466,13 +466,13 @@ function rdFillPassage(pop, res) {
   const best = res.candidates[0];
   const body = $('.word-pop-body', pop);
   body.innerHTML = best
-    ? `<div class="row" style="align-items:flex-start;gap:6px">
-        <div class="grow"><div class="tr-label" style="margin-top:0">Bản dịch</div><div class="tr-text">${esc(best.text)}</div></div>
+    ? `<div class="row align-start gap-6">
+        <div class="grow"><div class="tr-label mt-0">Bản dịch</div><div class="tr-text">${esc(best.text)}</div></div>
         <div class="tools"><button class="icon-btn" data-act="copy" title="Sao chép bản dịch">${icon('copy')}</button></div>
       </div>
       ${res.in_text.length ? `<div class="tr-label">Thuật ngữ của bạn trong đoạn</div>
         <div class="chips">${res.in_text.map((t) => `<span class="badge badge-teal">${esc(t.en)} → ${esc(t.vi)}</span>`).join('')}</div>` : ''}
-      <div class="note-warn" style="margin-top:10px">Dịch máy, chỉ để đọc hiểu nhanh. Bấm vào từng thuật ngữ để xem cách dịch chuẩn.</div>`
+      <div class="note-warn mt-10">Dịch máy, chỉ để đọc hiểu nhanh. Bấm vào từng thuật ngữ để xem cách dịch chuẩn.</div>`
     : `<div class="muted small">Không dịch được đoạn này. ${errorNote(res.errors)}</div>`;
   const copy = $('[data-act="copy"]', body);
   if (copy) copy.addEventListener('click', () => rdCopy(best.text));
