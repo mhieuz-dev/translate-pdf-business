@@ -1,5 +1,9 @@
 # Dán vào trong khối site mhieuz.com { ... } của Caddyfile, rồi: systemctl reload caddy
 # https://mhieuz.com/thongngu-pdf/health -> 127.0.0.1:8787/health
+# QUAN TRỌNG: header chung của khối site mhieuz.com phải bỏ qua đường dẫn này, nếu không CSP
+# chung của site sẽ đè CSP máy chủ trả về và file PDF mất sandbox:
+#   @notthongngu not path /thongngu-pdf/*
+#   header @notthongngu { ...các header chung như cũ... }
 handle_path /thongngu-pdf/* {
 	request_body {
 		max_size 32MB
