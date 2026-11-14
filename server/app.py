@@ -27,14 +27,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import notify_mail
+import stats
 import pymupdf
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 HERE = Path(__file__).resolve().parent
 
 
@@ -75,6 +77,8 @@ class Settings:
     job_timeout_s: int = _env_int("THONGNGU_JOB_TIMEOUT", 20 * 60)
     python: str = os.environ.get("THONGNGU_PYTHON", sys.executable)
     bridge: Path = Path(os.environ.get("THONGNGU_BRIDGE", HERE / "pdf_bridge.py"))
+    # Link bí mật của trang quản trị; rỗng hoặc ngắn hơn 32 ký tự thì trang quản trị tắt (404).
+    admin_token: str = os.environ.get("THONGNGU_ADMIN_TOKEN", "").strip()
 
 
 S = Settings()
@@ -82,6 +86,10 @@ PAGES_RE = re.compile(r"^\s*\d+\s*(-\s*\d*\s*)?(,\s*\d+\s*(-\s*\d*\s*)?)*$")
 ID_RE = re.compile(r"^[0-9a-f]{32}$")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
 FILE_PATH_RE = re.compile(r"^/jobs/[0-9a-f]{32}/files/[a-z]+$")
+ADMIN_DIR = HERE / "admin"
+ADMIN_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; "
+             "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+ADMIN_TYPES = {".css": "text/css", ".js": "text/javascript", ".ttf": "font/ttf"}
 
 
 def safe_filename(name: str) -> str:
@@ -347,14 +355,29 @@ def link_files(src: Job, dst: Job) -> None:
     dst.twin, dst.shared = None, True
 
 
-def finish_twins(src: Job) -> None:
+def finish_twins(src: Job) -> list[Job]:
     """Lượt dịch xong: các lượt giống hệt đang chờ nhận luôn bản dịch; lỗi thì chúng tự dịch khi tới lượt."""
+    linked = []
     for j in JOBS.values():
         if j.twin == src.id and j.status == "queued":
             if src.status == "done":
                 link_files(src, j)
+                linked.append(j)
             else:
                 j.twin = None
+    return linked
+
+
+def log_job(job: Job) -> None:
+    """Ghi 1 dòng vào sổ thống kê khi lượt kết thúc. Lỗi ghi sổ không được làm hỏng hàng đợi."""
+    end = job.finished or time.time()
+    start = job.started or end
+    try:
+        stats.record(S.data_dir / "stats.jsonl", t=end, ip_h=stats.ip_hash(job.ip, S.admin_token or "thongngu"),
+                     pages=len(job.pages), seconds=end - start, wait=max(0.0, start - job.created),
+                     status=job.status, shared=job.shared)
+    except OSError as e:
+        print(f"[job {job.id}] lỗi ghi sổ thống kê: {e!r}", file=sys.stderr, flush=True)
 
 
 async def run_job(job: Job) -> None:
@@ -443,7 +466,8 @@ async def worker() -> None:
             except Exception as e:  # không để một file hỏng làm chết hàng đợi
                 job.status, job.error, job.finished = "error", friendly_error(str(e)), time.time()
                 print(f"[job {job.id}] ngoại lệ: {e!r}", file=sys.stderr, flush=True)
-            finish_twins(job)
+            for j in [job, *finish_twins(job)]:
+                log_job(j)
             schedule_mail(job)
         QUEUE.task_done()
 
@@ -481,14 +505,25 @@ async def janitor() -> None:
 
 # ======================= HTTP =======================
 
+async def ram_sampler() -> None:
+    while True:
+        try:
+            avail, total = stats.parse_meminfo(Path("/proc/meminfo").read_text())
+            RAM.sample(avail, total, time.time())
+        except (OSError, KeyError, ValueError, IndexError):
+            pass  # không phải Linux / không đọc được: trang quản trị chỉ thiếu số RAM
+        await asyncio.sleep(30)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global QUEUE
+    global QUEUE, RAM
     QUEUE = asyncio.Queue()
     S.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     with contextlib.suppress(OSError):
         os.chmod(S.data_dir, 0o700)  # thư mục cũ có thể còn quyền 755
-    tasks = [asyncio.create_task(worker()), asyncio.create_task(janitor())]
+    RAM = stats.RamTracker(S.data_dir / "ram_daily.json")
+    tasks = [asyncio.create_task(worker()), asyncio.create_task(janitor()), asyncio.create_task(ram_sampler())]
     _app.state.tasks = tasks
     try:
         yield
@@ -515,7 +550,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         h["Cross-Origin-Resource-Policy"] = "cross-origin"
         h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
         h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        if FILE_PATH_RE.match(request.url.path):
+        if request.url.path.startswith("/admin/"):
+            h["Content-Security-Policy"] = ADMIN_CSP
+            h["Cache-Control"] = "no-store"
+        elif FILE_PATH_RE.match(request.url.path):
             h["Content-Security-Policy"] = "default-src 'none'; sandbox"
             h["X-Download-Options"] = "noopen"
             h["Cache-Control"] = "private, no-store"
@@ -623,6 +661,7 @@ async def create_job(
     JOBS[job.id] = job
     if done_same:
         link_files(done_same, job)  # đã có người dịch đúng file này: trả ngay
+        log_job(job)
         return job.public(None)
     if busy_same:
         job.twin = busy_same.id  # đang dịch đúng file này: xong cùng lúc, không dịch lại
@@ -656,3 +695,54 @@ async def job_file(job_id: str, kind: str, download: bool = False) -> FileRespon
         filename=f"{stem}.{suffix}.pdf",
         content_disposition_type="attachment" if download else "inline",
     )
+
+
+# ---------- trang quản trị (link bí mật) ----------
+RAM: stats.RamTracker | None = None
+
+
+def check_admin(token: str) -> None:
+    t = S.admin_token
+    if len(t) < 32 or not secrets.compare_digest(token.encode(), t.encode()):
+        raise HTTPException(404, "Not Found")
+
+
+def admin_assets() -> dict[str, Path]:
+    """Danh sách trắng: chỉ đúng các file trong admin/ (và admin/fonts/) mới được phục vụ."""
+    out = {}
+    for p in [*ADMIN_DIR.glob("*"), *ADMIN_DIR.glob("fonts/*")]:
+        if p.is_file() and p.suffix in ADMIN_TYPES:
+            out[p.relative_to(ADMIN_DIR).as_posix()] = p
+    return out
+
+
+@app.get("/admin/{token}", include_in_schema=False)
+async def admin_redirect(token: str) -> RedirectResponse:
+    check_admin(token)
+    # Location tương đối vì Caddy đã bỏ tiền tố /thongngu-pdf trước khi chuyển vào đây.
+    return RedirectResponse(f"{token}/", status_code=307)
+
+
+@app.get("/admin/{token}/", include_in_schema=False)
+async def admin_page(token: str) -> FileResponse:
+    check_admin(token)
+    return FileResponse(ADMIN_DIR / "index.html", media_type="text/html")
+
+
+@app.get("/admin/{token}/stats", include_in_schema=False)
+async def admin_stats(token: str) -> dict:
+    check_admin(token)
+    ram = RAM or stats.RamTracker(S.data_dir / "ram_daily.json")
+    out = await asyncio.to_thread(stats.summary, S.data_dir / "stats.jsonl", ram, time.time())
+    out["queue"] = {"running": sum(1 for j in JOBS.values() if j.status == "running"),
+                    "queued": sum(1 for j in JOBS.values() if j.status == "queued")}
+    return out
+
+
+@app.get("/admin/{token}/assets/{name:path}", include_in_schema=False)
+async def admin_asset(token: str, name: str) -> FileResponse:
+    check_admin(token)
+    path = admin_assets().get(name)
+    if not path:
+        raise HTTPException(404, "Not Found")
+    return FileResponse(path, media_type=ADMIN_TYPES[path.suffix])
