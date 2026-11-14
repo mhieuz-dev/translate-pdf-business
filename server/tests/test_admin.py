@@ -59,3 +59,43 @@ def test_admin_asset_whitelist(admin):
     assert admin.get(f"/admin/{TOK}/assets/admin.css").status_code == 200
     assert admin.get(f"/admin/{TOK}/assets/..%2Fapp.py").status_code == 404
     assert admin.get(f"/admin/{TOK}/assets/app.py").status_code == 404
+
+
+def test_admin_counts_twins_once_each(admin, monkeypatch):
+    monkeypatch.setenv("FAKE_SLEEP", "1.0")
+    data = make_pdf(3)
+    a = upload(admin, data).json()
+    b = upload(admin, data).json()
+    assert wait_done(admin, a["id"])["status"] == "done"
+    assert wait_done(admin, b["id"])["status"] == "done"
+    t = admin.get(f"/admin/{TOK}/stats").json()["today"]
+    assert (t["runs"], t["pages"]) == (2, 3)
+    assert len((srv.S.data_dir / "stats.jsonl").read_text().splitlines()) == 2
+
+
+def test_admin_counts_errors(admin, monkeypatch):
+    monkeypatch.setenv("FAKE_MODE", "error")
+    j = upload(admin).json()
+    assert wait_done(admin, j["id"])["status"] == "error"
+    t = admin.get(f"/admin/{TOK}/stats").json()["today"]
+    assert (t["runs"], t["errors"], t["people"]) == (0, 1, 1)
+
+
+def test_log_failure_does_not_kill_queue(admin, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("đĩa hỏng")
+    monkeypatch.setattr(srv.stats, "record", boom)
+    j1 = upload(admin, make_pdf(1, "one")).json()
+    assert wait_done(admin, j1["id"])["status"] == "done"
+    j2 = upload(admin, make_pdf(1, "two")).json()
+    assert wait_done(admin, j2["id"])["status"] == "done"
+
+
+def test_access_log_hides_admin_paths():
+    import logging
+    f = srv.HideAdminAccess()
+    rec = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+                            ("1.2.3.4:0", "GET", f"/admin/{TOK}/stats", "1.1", 200), None)
+    assert f.filter(rec) is False
+    rec.args = ("1.2.3.4:0", "GET", "/health", "1.1", 200)
+    assert f.filter(rec) is True

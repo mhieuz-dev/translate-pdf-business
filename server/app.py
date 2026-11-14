@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -373,10 +374,10 @@ def log_job(job: Job) -> None:
     end = job.finished or time.time()
     start = job.started or end
     try:
-        stats.record(S.data_dir / "stats.jsonl", t=end, ip_h=stats.ip_hash(job.ip, S.admin_token or "thongngu"),
+        stats.record(S.data_dir / "stats.jsonl", t=end, ip_h=stats.ip_hash(job.ip, ip_key()),
                      pages=len(job.pages), seconds=end - start, wait=max(0.0, start - job.created),
                      status=job.status, shared=job.shared)
-    except OSError as e:
+    except Exception as e:  # kể cả lỗi lạ: worker chết thì mọi lượt sau treo ở "đang chờ"
         print(f"[job {job.id}] lỗi ghi sổ thống kê: {e!r}", file=sys.stderr, flush=True)
 
 
@@ -517,8 +518,9 @@ async def ram_sampler() -> None:
 
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global QUEUE, RAM
+    global QUEUE, RAM, _IP_KEY
     QUEUE = asyncio.Queue()
+    _IP_KEY = None  # nạp lại theo data_dir hiện tại
     S.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     with contextlib.suppress(OSError):
         os.chmod(S.data_dir, 0o700)  # thư mục cũ có thể còn quyền 755
@@ -699,6 +701,25 @@ async def job_file(job_id: str, kind: str, download: bool = False) -> FileRespon
 
 # ---------- trang quản trị (link bí mật) ----------
 RAM: stats.RamTracker | None = None
+_IP_KEY: str | None = None
+
+
+def ip_key() -> str:
+    global _IP_KEY
+    if _IP_KEY is None:
+        _IP_KEY = stats.load_ip_key(S.data_dir / "ip_key")
+    return _IP_KEY
+
+
+class HideAdminAccess(logging.Filter):
+    """Không ghi đường dẫn /admin/<token> vào log truy cập (journald), để dán log khi gỡ lỗi không lộ link."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args if isinstance(record.args, tuple) else ()
+        return not any(isinstance(a, str) and a.startswith("/admin/") for a in args)
+
+
+logging.getLogger("uvicorn.access").addFilter(HideAdminAccess())
 
 
 def check_admin(token: str) -> None:

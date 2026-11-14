@@ -90,3 +90,25 @@ def test_ram_tracker_min_and_reload(tmp_path):
 def test_parse_meminfo():
     text = "MemTotal:        3910656 kB\nMemFree:  1 kB\nMemAvailable:    1651712 kB\n"
     assert stats.parse_meminfo(text) == (1613, 3819)
+
+
+def test_summary_survives_garbage(tmp_path):
+    p = tmp_path / "stats.jsonl"
+    now = time.time()
+    _rec(p, now - 30, "A")
+    with p.open("ab") as f:
+        f.write(b"\xff\xfe garbage\n")
+        f.write(b'{"t": 1e20, "ip": "x", "pages": 1, "sec": 1, "wait": 0, "status": "done", "shared": false}\n')
+        f.write(b'{"t": NaN, "ip": "x", "pages": 1, "sec": 1, "wait": 0, "status": "done", "shared": false}\n')
+        f.write(b"\x00" * 50)  # ext4 mất điện để lại byte NUL, lần ghi sau nối tiếp cùng dòng
+    _rec(p, now - 10, "B")
+    s = stats.summary(p, stats.RamTracker(tmp_path / "ram.json"), now)
+    assert s["today"]["runs"] == 2 and s["today"]["people"] == 2
+
+
+def test_ip_key_random_and_kept(tmp_path):
+    k1 = stats.load_ip_key(tmp_path / "ip_key")
+    assert len(k1) >= 32 and k1 != "thongngu"
+    assert stats.load_ip_key(tmp_path / "ip_key") == k1
+    assert stat.S_IMODE(os.stat(tmp_path / "ip_key").st_mode) == 0o600
+    assert stats.load_ip_key(tmp_path / "other") != k1

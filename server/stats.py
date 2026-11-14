@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -17,6 +18,21 @@ VN = timezone(timedelta(hours=7))
 
 def ip_hash(ip: str, key: str) -> str:
     return hmac.new(key.encode(), ip.encode(), hashlib.sha256).hexdigest()[:16]
+
+
+def load_ip_key(path: Path) -> str:
+    """Khoá băm IP: ngẫu nhiên, tạo 1 lần, quyền 0600, tách khỏi token (đổi link không làm đếm đôi người)."""
+    try:
+        key = path.read_text(encoding="utf-8").strip()
+        if len(key) >= 32:
+            return key
+    except OSError:
+        pass
+    key = secrets.token_hex(32)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(key)
+    return key
 
 
 def day_vn(ts: float) -> str:
@@ -67,15 +83,18 @@ class RamTracker:
 def _read(path: Path) -> list[dict]:
     rows = []
     try:
-        with path.open(encoding="utf-8") as f:
+        # errors="replace": byte rác không làm hỏng cả trang; mất điện trên ext4 có thể để lại byte NUL
+        # mà lần ghi sau nối tiếp cùng dòng, nên chỉ lấy phần sau NUL cuối cùng.
+        with path.open(encoding="utf-8", errors="replace") as f:
             for line in f:
                 try:
-                    r = json.loads(line)
-                    rows.append({"t": float(r["t"]), "ip": str(r["ip"]), "pages": int(r["pages"]),
+                    r = json.loads(line.rsplit("\x00", 1)[-1])
+                    t = float(r["t"])
+                    rows.append({"t": t, "day": day_vn(t), "ip": str(r["ip"]), "pages": int(r["pages"]),
                                  "sec": float(r["sec"]), "wait": float(r["wait"]),
                                  "status": str(r["status"]), "shared": bool(r["shared"])})
-                except (ValueError, KeyError, TypeError):
-                    continue  # dòng hỏng (máy tắt giữa lúc ghi) thì bỏ qua
+                except (ValueError, KeyError, TypeError, OverflowError, OSError):
+                    continue  # dòng hỏng thì bỏ qua
     except OSError:
         pass
     return rows
@@ -84,7 +103,7 @@ def _read(path: Path) -> list[dict]:
 def summary(path: Path, ram: RamTracker, now: float, days: int = 14) -> dict:
     by_day: dict[str, list[dict]] = {}
     for r in _read(path):
-        by_day.setdefault(day_vn(r["t"]), []).append(r)
+        by_day.setdefault(r["day"], []).append(r)
     today = datetime.fromtimestamp(now, VN).date()
     out = []
     for i in range(days):

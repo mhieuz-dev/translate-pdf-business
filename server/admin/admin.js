@@ -61,10 +61,9 @@
   }
 
   function renderDelta(key, today, yesterday) {
-    const el = $(`d-${key}`), diff = today - yesterday;
-    el.className = `kpi-delta${diff > 0 ? ' up' : diff < 0 ? ' down' : ''}`;
-    el.textContent = diff === 0 ? `Bằng hôm qua (${nf.format(yesterday)})`
-      : `${diff > 0 ? '+' : ''}${nf.format(diff)} so với hôm qua`;
+    const el = $(`d-${key}`);
+    el.className = `kpi-delta${today > yesterday ? ' up' : ''}`;
+    el.textContent = `Hôm qua: ${nf.format(yesterday)}`;
   }
 
   function renderKpis(t, y) {
