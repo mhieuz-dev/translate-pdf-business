@@ -89,7 +89,7 @@ FILE_PATH_RE = re.compile(r"^/jobs/[0-9a-f]{32}/files/[a-z]+$")
 ADMIN_DIR = HERE / "admin"
 ADMIN_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; "
              "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
-ADMIN_TYPES = {".css": "text/css", ".js": "text/javascript", ".ttf": "font/ttf"}
+ADMIN_TYPES = {".css": "text/css", ".js": "text/javascript", ".ttf": "font/ttf", ".png": "image/png"}
 
 
 def safe_filename(name: str) -> str:

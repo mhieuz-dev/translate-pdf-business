@@ -1,1 +1,98 @@
-<!doctype html><meta charset="utf-8"><title>Thông Ngữ · Quản trị</title><link rel="stylesheet" href="assets/admin.css">
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#005f69">
+  <title>Thông Ngữ · Quản trị</title>
+  <link rel="icon" href="assets/favicon.png">
+  <link rel="stylesheet" href="assets/admin.css">
+  <script src="assets/admin.js" defer></script>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="brand">
+        <img class="brand-mark" src="assets/favicon.png" alt="" width="40" height="40">
+        <div>
+          <div class="brand-name">Thông Ngữ</div>
+          <div class="brand-sub">Bảng quản trị máy chủ dịch</div>
+        </div>
+      </div>
+      <div class="live" id="live"><span class="live-dot"></span><span id="updated">Đang tải số liệu</span></div>
+    </header>
+
+    <div class="banner" id="banner" hidden>Mất kết nối tới máy chủ, đang thử lại. Số liệu bên dưới là lần cập nhật gần nhất.</div>
+
+    <section class="hero">
+      <article class="card ram" id="ram-card">
+        <div class="card-head">
+          <h2>RAM máy chủ</h2>
+          <span class="pill" id="queue-pill"><span class="pill-dot"></span><span id="queue-text">Đang rảnh</span></span>
+        </div>
+        <div class="ram-body">
+          <svg class="gauge" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
+            <circle class="gauge-fill" id="gauge-fill" cx="60" cy="60" r="50"></circle>
+          </svg>
+          <div class="gauge-center">
+            <div class="gauge-value" id="ram-free">-</div>
+            <div class="gauge-label">GB còn trống</div>
+          </div>
+        </div>
+        <dl class="ram-meta">
+          <div><dt>Tổng RAM</dt><dd id="ram-total">-</dd></div>
+          <div><dt>Đang dùng</dt><dd id="ram-used">-</dd></div>
+          <div><dt>Thấp nhất hôm nay</dt><dd id="ram-min">-</dd></div>
+        </dl>
+        <p class="ram-note" id="ram-note"></p>
+      </article>
+
+      <div class="kpis">
+        <article class="card kpi">
+          <div class="kpi-label">Lượt dịch hôm nay</div>
+          <div class="kpi-value" id="k-runs">0</div>
+          <div class="kpi-delta" id="d-runs"></div>
+          <div class="kpi-sub" id="k-runs-sub">Chưa có lượt lỗi</div>
+        </article>
+        <article class="card kpi">
+          <div class="kpi-label">Người dịch</div>
+          <div class="kpi-value" id="k-people">0</div>
+          <div class="kpi-delta" id="d-people"></div>
+          <div class="kpi-sub">người khác nhau trong ngày</div>
+        </article>
+        <article class="card kpi">
+          <div class="kpi-label">Trang đã dịch</div>
+          <div class="kpi-value" id="k-pages">0</div>
+          <div class="kpi-delta" id="d-pages"></div>
+          <div class="kpi-sub" id="k-pages-sub">Chưa ai phải chờ</div>
+        </article>
+      </div>
+    </section>
+
+    <article class="card chart-card">
+      <div class="card-head">
+        <h2>Lượt dịch 14 ngày qua</h2>
+        <span class="muted" id="chart-total"></span>
+      </div>
+      <div class="chart" id="chart" role="img" aria-label="Biểu đồ lượt dịch 14 ngày"></div>
+    </article>
+
+    <article class="card table-card">
+      <div class="card-head"><h2>Chi tiết từng ngày</h2></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Ngày</th><th>Lượt</th><th>Người</th><th>Trang</th><th>Dịch TB</th><th>RAM trống thấp nhất</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </article>
+
+    <footer class="foot">Số liệu tính theo giờ Việt Nam, tự cập nhật mỗi 30 giây.</footer>
+  </main>
+</body>
+</html>
